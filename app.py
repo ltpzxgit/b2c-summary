@@ -3,8 +3,8 @@ import pandas as pd
 import re
 from io import BytesIO
 
-st.set_page_config(page_title="ITOSE - VIN BLOCK", layout="wide")
-st.title("ITOSE Tools - VIN + UUID + DeviceID (Block Mode)")
+st.set_page_config(page_title="ITOSE - VIN UUID", layout="wide")
+st.title("ITOSE Tools - VIN + UUID (Datahub Only)")
 
 # =========================
 # REGEX
@@ -16,7 +16,6 @@ VIN_REGEX_LIST = [
 ]
 
 UUID_REGEX = r'([a-f0-9\-]{36})'
-DEVICE_REGEX = r'"LDCMID"\s*:\s*"([^"]+)"'
 
 # =========================
 # FUNCTIONS
@@ -41,36 +40,28 @@ if datahub_file:
 
     df = pd.read_csv(datahub_file) if datahub_file.name.endswith(".csv") else pd.read_excel(datahub_file)
 
-    # 🔥 รวมทุก column เป็น text เดียว
-    full_text = ""
-    for col in df.columns:
-        for val in df[col]:
-            if pd.notna(val):
-                full_text += str(val) + "\n"
-
-    # 🔥 split เป็น block (JSON style)
-    blocks = re.findall(r'\{.*?\}', full_text, re.DOTALL)
-
     vin_map = {}
 
-    for block in blocks:
+    for col in df.columns:
+        for val in df[col]:
+            if pd.isna(val):
+                continue
 
-        vins = extract_vins(block)
-        if not vins:
-            continue
+            text = str(val)
 
-        uuid_match = re.search(UUID_REGEX, block)
-        device_match = re.search(DEVICE_REGEX, block)
+            vins = extract_vins(text)
+            if not vins:
+                continue
 
-        uuid = uuid_match.group(1) if uuid_match else ""
-        device = device_match.group(1) if device_match else ""
+            uuid_match = re.search(UUID_REGEX, text)
+            uuid = uuid_match.group(1) if uuid_match else ""
 
-        for vin in vins:
-            vin_map[vin] = {
-                "VIN": vin,
-                "UUID": uuid,
-                "DeviceID": device
-            }
+            for vin in vins:
+                # overwrite → เอาค่าล่าสุดของ VIN
+                vin_map[vin] = {
+                    "VIN": vin,
+                    "UUID": uuid
+                }
 
     vin_list = list(vin_map.values())
 
@@ -89,23 +80,27 @@ if datahub_file:
         df_vin = df_vin.reset_index(drop=True)
         df_vin.insert(0, "No.", df_vin.index + 1)
 
-        st.subheader("VIN + UUID + DeviceID (Block)")
+        st.subheader("VIN + UUID")
         st.dataframe(df_vin, use_container_width=True)
+
+        # preview
+        st.write("Sample (20 แถวแรก):")
+        st.dataframe(df_vin.head(20), use_container_width=True)
 
         # =========================
         # EXPORT
         # =========================
         output = BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df_vin.to_excel(writer, index=False, sheet_name='VIN_BLOCK')
+            df_vin.to_excel(writer, index=False, sheet_name='VIN_UUID')
 
         output.seek(0)
 
         st.download_button(
-            "Download",
+            "Download VIN + UUID",
             data=output,
-            file_name="vin-block.xlsx"
+            file_name="vin-uuid.xlsx"
         )
 
     else:
-        st.error("❌ ไม่เจอ VIN ใน block")
+        st.error("❌ ไม่เจอ VIN → regex อาจไม่ match format log")
