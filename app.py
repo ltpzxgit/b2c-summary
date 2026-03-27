@@ -44,7 +44,6 @@ def extract_tail(text):
 
     return response, status, message
 
-# 🔥 UUID จากบรรทัดเดียวกับ VIN
 UUID_REGEX = r'([a-f0-9\-]{36})'
 
 def extract_uuid(text):
@@ -55,15 +54,13 @@ def extract_uuid(text):
 # UPLOAD
 # =========================
 datahub_file = st.file_uploader("TCAPLinkageDatahub", type=["xlsx", "csv"])
+tcap_file = st.file_uploader("TCAPLinkage", type=["xlsx", "csv"])
 
 # =========================
-# PROCESS
+# PROCESS FUNCTION
 # =========================
-if datahub_file:
-
-    df = pd.read_csv(datahub_file) if datahub_file.name.endswith(".csv") else pd.read_excel(datahub_file)
-
-    rows = []   # 🔥 เปลี่ยนจาก map → list (เพราะ UUID ซ้ำได้)
+def process_file(df, filter_empty_response=False):
+    rows = []
 
     for col in df.columns:
         for val in df[col]:
@@ -81,7 +78,11 @@ if datahub_file:
                 data = json.loads(json_str)
 
                 response, status, msg = extract_tail(text)
-                uuid = extract_uuid(text)   # 🔥 ดึง UUID จาก text เดียวกัน
+                uuid = extract_uuid(text)
+
+                # 🔥 ถ้าเป็น TCAPLinkage แล้ว response ว่าง → skip ทั้ง VIN
+                if filter_empty_response and response == "":
+                    continue
 
                 if isinstance(data, list):
                     for item in data:
@@ -91,35 +92,55 @@ if datahub_file:
                             continue
 
                         device = item.get("deviceId", "")
-                        carrier = item.get("carrier", "")
-                        sim = map_sim(item.get("simPackage", ""))
 
                         rows.append({
-                            "UUID": uuid,          # 🔥 ใส่ก่อน VIN
+                            "UUID": uuid,
                             "VIN": vin,
                             "DeviceID": device,
-                            "Carrier": carrier,
-                            "SimPackage": sim,
                             "Response Message": response,
-                            "StatusCode": status,
-                            "Message": msg
+                            "StatusCode": status
                         })
 
             except:
                 continue
 
+    return rows
+
+# =========================
+# RUN
+# =========================
+if datahub_file or tcap_file:
+
+    all_rows = []
+
+    # -------------------------
+    # FILE 1: Datahub (เหมือนเดิม)
+    # -------------------------
+    if datahub_file:
+        df1 = pd.read_csv(datahub_file) if datahub_file.name.endswith(".csv") else pd.read_excel(datahub_file)
+        rows1 = process_file(df1, filter_empty_response=False)
+        all_rows.extend(rows1)
+
+    # -------------------------
+    # FILE 2: TCAPLinkage (มี filter)
+    # -------------------------
+    if tcap_file:
+        df2 = pd.read_csv(tcap_file) if tcap_file.name.endswith(".csv") else pd.read_excel(tcap_file)
+        rows2 = process_file(df2, filter_empty_response=True)
+        all_rows.extend(rows2)
+
     # =========================
     # SUMMARY
     # =========================
     st.markdown("### Summary")
-    st.metric("VIN ทั้งหมด", len(rows))
+    st.metric("VIN ทั้งหมด", len(all_rows))
 
     # =========================
     # TABLE
     # =========================
-    if rows:
+    if all_rows:
 
-        df_vin = pd.DataFrame(rows).fillna("")
+        df_vin = pd.DataFrame(all_rows).fillna("")
         df_vin = df_vin.reset_index(drop=True)
         df_vin.insert(0, "No.", df_vin.index + 1)
 
@@ -130,14 +151,14 @@ if datahub_file:
         # =========================
         output = BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df_vin.to_excel(writer, index=False, sheet_name='VIN_FULL')
+            df_vin.to_excel(writer, index=False, sheet_name='VIN_FINAL')
 
         output.seek(0)
 
         st.download_button(
             "Download",
             data=output,
-            file_name="vin-full-with-uuid.xlsx"
+            file_name="vin-final-with-uuid.xlsx"
         )
 
     else:
