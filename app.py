@@ -7,7 +7,7 @@ st.set_page_config(page_title="ITOSE - TCAP 2 FILES", layout="wide")
 st.title("ITOSE Tools - TCAP (VIN Focus Version)")
 
 # =========================
-# REGEX
+# REGEX (DATAHUB)
 # =========================
 UUID_REGEX = r'([a-f0-9\-]{36})'
 VIN_REGEX = r'"vin"\s*:\s*"([^"]+)"'
@@ -15,14 +15,21 @@ DEVICE_REGEX = r'"LDCMID"\s*:\s*"([^"]+)"'
 RESULT_REGEX = r'"message"\s*:\s*"([^"]+)"'
 SIM_REGEX = r'"simPackage"\s*:\s*"([^"]+)"'
 
-TCAP_REGEX = r'"deviceId":"([^"]+)".*?"IMEI":"([^"]+)".*?"ICCID":"([^"]+)".*?"IMSI":"([^"]+)".*?"prodStatus":"([^"]+)".*?"prodDate":"([^"]+)".*?"sendDate":"([^"]+)".*?"typeStatus":"([^"]+)"'
+# =========================
+# REGEX (TCAP FLEX)
+# =========================
+DEVICEID_REGEX = r'"deviceId"\s*:\s*"([^"]+)"'
+IMEI_REGEX = r'"IMEI"\s*:\s*"([^"]+)"'
+ICCID_REGEX = r'"ICCID"\s*:\s*"([^"]+)"'
+IMSI_REGEX = r'"IMSI"\s*:\s*"([^"]+)"'
+PROD_REGEX = r'"prodStatus"\s*:\s*"([^"]+)"'
+PRODDATE_REGEX = r'"prodDate"\s*:\s*"([^"]+)"'
+SENDDATE_REGEX = r'"sendDate"\s*:\s*"([^"]+)"'
+TYPE_REGEX = r'"typeStatus"\s*:\s*"([^"]+)"'
 
 # =========================
 # FUNCTIONS
 # =========================
-def extract_tcap(text):
-    return re.findall(TCAP_REGEX, text)
-
 def get_carrier(deviceid):
     if isinstance(deviceid, str) and deviceid.startswith(("A", "Z")):
         return "AIS"
@@ -70,41 +77,34 @@ if datahub_file and tcap_file:
 
             vin_match = re.search(VIN_REGEX, text)
             if not vin_match:
-                continue  # ❌ ไม่มี VIN = ไม่เอา
+                continue
 
             vin = vin_match.group(1)
 
-            uuid_match = re.search(UUID_REGEX, text)
-            device_match = re.search(DEVICE_REGEX, text)
-            result_match = re.search(RESULT_REGEX, text)
-            sim_match = re.search(SIM_REGEX, text)
+            uuid = re.search(UUID_REGEX, text)
+            device = re.search(DEVICE_REGEX, text)
+            result = re.search(RESULT_REGEX, text)
+            sim = re.search(SIM_REGEX, text)
 
-            uuid = uuid_match.group(1) if uuid_match else ""
-            device = device_match.group(1) if device_match else ""
-            result = result_match.group(1).strip() if result_match else ""
-            sim = sim_match.group(1) if sim_match else ""
-
-            # overwrite → เอาตัวล่าสุดต่อ VIN
             vin_map[vin] = {
                 "VIN": vin,
-                "UUID": uuid,
-                "DeviceID": device,
-                "Carrier": get_carrier(device),
-                "SimPackage": sim,
-                "Result": result
+                "UUID": uuid.group(1) if uuid else "",
+                "DeviceID": device.group(1) if device else "",
+                "Carrier": get_carrier(device.group(1) if device else ""),
+                "SimPackage": sim.group(1) if sim else "",
+                "Result": result.group(1).strip() if result else ""
             }
 
     if not vin_map:
-        st.error("❌ ไม่พบ VIN ในไฟล์ Datahub (regex อาจไม่ match)")
+        st.error("❌ ไม่พบ VIN ในไฟล์ Datahub")
         st.stop()
 
     df1 = pd.DataFrame(vin_map.values())
-
     df1 = df1.reset_index(drop=True)
     df1.insert(0, "No.", df1.index + 1)
 
     # =========================
-    # 🔥 TCAP
+    # 🔥 TCAP (FLEX PARSE)
     # =========================
     trows = []
 
@@ -113,24 +113,38 @@ if datahub_file and tcap_file:
             if pd.isna(val):
                 continue
 
-            for d, imei, iccid, imsi, prod, pd1, sd, ts in extract_tcap(str(val)):
-                trows.append({
-                    "DeviceID": d,
-                    "IMEI": imei,
-                    "ICCID": iccid,
-                    "IMSI": imsi,
-                    "ProdStatus": prod,
-                    "ProdDate": pd1,
-                    "SendDate": sd,
-                    "TypeStatus": ts.strip()
-                })
+            text = str(val)
+
+            device = re.search(DEVICEID_REGEX, text)
+            if not device:
+                continue
+
+            imei = re.search(IMEI_REGEX, text)
+            iccid = re.search(ICCID_REGEX, text)
+            imsi = re.search(IMSI_REGEX, text)
+            prod = re.search(PROD_REGEX, text)
+            pd1 = re.search(PRODDATE_REGEX, text)
+            sd = re.search(SENDDATE_REGEX, text)
+            ts = re.search(TYPE_REGEX, text)
+
+            trows.append({
+                "DeviceID": device.group(1),
+                "IMEI": imei.group(1) if imei else "",
+                "ICCID": iccid.group(1) if iccid else "",
+                "IMSI": imsi.group(1) if imsi else "",
+                "ProdStatus": prod.group(1) if prod else "",
+                "ProdDate": pd1.group(1) if pd1 else "",
+                "SendDate": sd.group(1) if sd else "",
+                "TypeStatus": ts.group(1).strip() if ts else ""
+            })
+
+    st.write(f"DEBUG TCAP rows: {len(trows)}")
 
     if not trows:
-        st.error("❌ ไม่พบข้อมูล TCAP")
+        st.error("❌ ไม่พบข้อมูล TCAP (format log อาจไม่ใช่ JSON)")
         st.stop()
 
     df2 = pd.DataFrame(trows).drop_duplicates(subset=["DeviceID", "IMEI"])
-
     df2 = df2.reset_index(drop=True)
     df2.insert(0, "No.", df2.index + 1)
 
