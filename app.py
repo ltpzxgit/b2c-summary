@@ -5,31 +5,37 @@ import json
 from io import BytesIO
 
 st.set_page_config(page_title="ITOSE - B2C", layout="wide")
-st.title("ITOSE Tools - B2C Summary")
 
 # =========================
-# UI STYLE (Upload Compact - DTEN Style)
+# TITLE (ขยับลง)
+# =========================
+st.markdown("""
+<h1 style='margin-top: 30px; margin-bottom: 10px;'>
+ITOSE Tools - B2C Summary
+</h1>
+""", unsafe_allow_html=True)
+
+# =========================
+# UI STYLE (DTEN Style + Compact)
 # =========================
 st.markdown("""
 <style>
 .block-container {
-    padding-top: 1.5rem;
+    padding-top: 1rem;
     padding-bottom: 1.5rem;
 }
 
-/* Upload Card เตี้ยลง */
-[data-testid="stFileUploader"] {
-    margin-bottom: 6px !important;
+/* === Upload แนวตั้งแบบ DTEN === */
+[data-testid="stFileUploader"] section div {
+    flex-direction: column !important;
+    align-items: flex-start !important;
 }
 
-[data-testid="stFileUploader"] > div {
-    padding: 4px !important;
-}
-
+/* === ลดความสูง === */
 [data-testid="stFileUploader"] section {
-    padding: 10px 12px !important;
-    border-radius: 10px !important;
-    min-height: 80px !important;
+    padding: 12px !important;
+    border-radius: 12px !important;
+    min-height: unset !important;
 }
 
 /* Text */
@@ -40,21 +46,22 @@ st.markdown("""
 
 /* Button */
 [data-testid="stFileUploader"] button {
-    padding: 4px 10px !important;
-    font-size: 12px !important;
+    margin-top: 6px !important;
+    padding: 6px 12px !important;
+    font-size: 13px !important;
 }
 
-/* ลด gap */
-[data-testid="stFileUploader"] section div {
-    gap: 4px !important;
+/* spacing */
+[data-testid="stFileUploader"] {
+    margin-bottom: 8px !important;
 }
 
-/* Filename */
+/* filename */
 [data-testid="stFileUploader"] small {
     font-size: 12px !important;
 }
 
-/* Label spacing */
+/* label */
 label {
     margin-bottom: 4px !important;
 }
@@ -180,7 +187,7 @@ def summary_card(title, total, error):
     """, unsafe_allow_html=True)
 
 # =========================
-# UPLOAD (2 Columns แบบ DTEN)
+# UPLOAD
 # =========================
 col1, col2 = st.columns(2)
 
@@ -221,26 +228,19 @@ if file1:
             "StatusCode"
         ]]
 
-    # =========================
     # SUMMARY
-    # =========================
     st.markdown("## Summary")
 
-    cards = []
-    cards.append(("TCAPLinkageDatahub", len(df_vin1), 0))
-
+    cards = [("TCAPLinkageDatahub", len(df_vin1), 0)]
     if not df_vin2.empty:
         cards.append(("TCAPLinkage", len(df_vin2), 0))
 
     cols = st.columns(len(cards))
-
     for i, (title, total, error) in enumerate(cards):
         with cols[i]:
             summary_card(title, total, error)
 
-    # =========================
     # TABLE
-    # =========================
     st.markdown("### TCAPLinkageDatahub")
     st.dataframe(df_vin1, use_container_width=True)
 
@@ -248,25 +248,18 @@ if file1:
         st.markdown("### TCAPLinkage")
         st.dataframe(df_vin2, use_container_width=True)
 
-    # =========================
     # EXPORT
-    # =========================
     output = BytesIO()
 
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-
         df_vin1.to_excel(writer, index=False, sheet_name='TCAPLinkageDataHub')
 
         if not df_vin2.empty:
             df_vin2.to_excel(writer, index=False, sheet_name='TCAPLinkage')
 
-        summary_data = []
-
-        summary_data.append({
-            "Source": "TCAPLinkageDatahub",
-            "Total": len(df_vin1),
-            "Error": 0
-        })
+        summary_data = [
+            {"Source": "TCAPLinkageDatahub", "Total": len(df_vin1), "Error": 0}
+        ]
 
         if not df_vin2.empty:
             summary_data.append({
@@ -275,8 +268,7 @@ if file1:
                 "Error": 0
             })
 
-        df_summary = pd.DataFrame(summary_data)
-        df_summary.to_excel(writer, index=False, sheet_name='Summary')
+        pd.DataFrame(summary_data).to_excel(writer, index=False, sheet_name='Summary')
 
     output.seek(0)
 
