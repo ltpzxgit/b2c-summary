@@ -4,8 +4,50 @@ import re
 import json
 from io import BytesIO
 
-st.set_page_config(page_title="ITOSE - B2C", layout="wide")
-st.title("ITOSE Tools - B2C Summary")
+st.set_page_config(page_title="ITOSE - DTEN Summary", layout="wide")
+st.title("ITOSE Tools - DTEN Summary")
+
+# =========================
+# UI STYLE (เหมือนรูป)
+# =========================
+st.markdown("""
+<style>
+.block-container {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+}
+
+/* summary card */
+.summary-card {
+    background: linear-gradient(145deg, #0f172a, #0b1220);
+    border-radius: 20px;
+    padding: 28px 20px;
+    text-align: center;
+    border: 1px solid rgba(59,130,246,0.15);
+    box-shadow: 0 0 25px rgba(59,130,246,0.15);
+    transition: 0.2s;
+}
+
+.summary-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 0 40px rgba(59,130,246,0.3);
+}
+
+/* title */
+.summary-title {
+    color: #94a3b8;
+    font-size: 15px;
+    margin-bottom: 10px;
+}
+
+/* number */
+.summary-number {
+    color: #f8fafc;
+    font-size: 52px;
+    font-weight: 700;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # =========================
 # FUNCTIONS
@@ -86,51 +128,24 @@ def process_file(df):
 
     return rows
 
-def count_error(df):
-    if df.empty:
-        return 0
-
-    return df[
-        ~df["Response Message"].str.contains(
-            "success|ok|20000",
-            case=False,
-            na=False
-        )
-    ].shape[0]
-
-def summary_card(title, total, error):
-    color = "#22c55e" if error == 0 else "#ef4444"
-
+def summary_card(title, total):
     st.markdown(f"""
-    <div style="
-        background: linear-gradient(135deg, #0f172a, #1e293b);
-        padding: 25px;
-        border-radius: 18px;
-        text-align: center;
-        border: 1px solid #334155;
-    ">
-        <div style="color:#94a3b8; font-size:16px;">{title}</div>
-        <div style="color:white; font-size:48px; font-weight:700; margin:10px 0;">
-            {total}
-        </div>
-        <div style="
-            margin-top:10px;
-            padding:12px;
-            border-radius:12px;
-            border:1px solid {color};
-            color:{color};
-            font-weight:600;
-        ">
-            Error: {error}
-        </div>
+    <div class="summary-card">
+        <div class="summary-title">{title}</div>
+        <div class="summary-number">{total}</div>
     </div>
     """, unsafe_allow_html=True)
 
 # =========================
 # UPLOAD
 # =========================
-file1 = st.file_uploader("TCAPLinkageDatahub", type=["xlsx", "csv"])
-file2 = st.file_uploader("TCAPLinkage", type=["xlsx", "csv"])
+col1, col2 = st.columns(2)
+
+with col1:
+    file1 = st.file_uploader("DTEN", type=["xlsx", "csv"])
+
+with col2:
+    file2 = st.file_uploader("DTENTCAP", type=["xlsx", "csv"])
 
 # =========================
 # PROCESS
@@ -167,39 +182,30 @@ if file1:
         ]]
 
     # =========================
-    # SUMMARY UI
+    # SUMMARY
     # =========================
     st.markdown("## Summary")
 
     cards = []
-
-    cards.append({
-        "title": "TCAPLinkageDatahub",
-        "total": len(df_vin1),
-        "error": count_error(df_vin1)
-    })
+    cards.append(("DTEN", len(df_vin1)))
 
     if not df_vin2.empty:
-        cards.append({
-            "title": "TCAPLinkage ",
-            "total": len(df_vin2),
-            "error": count_error(df_vin2)
-        })
+        cards.append(("DTENTCAP", len(df_vin2)))
 
     cols = st.columns(len(cards))
 
-    for i, card in enumerate(cards):
+    for i, (title, total) in enumerate(cards):
         with cols[i]:
-            summary_card(card["title"], card["total"], card["error"])
+            summary_card(title, total)
 
     # =========================
     # TABLE
     # =========================
-    st.markdown("### TCAPLinkageDatahub")
+    st.markdown("### DTEN")
     st.dataframe(df_vin1, use_container_width=True)
 
     if not df_vin2.empty:
-        st.markdown("### TCAPLinkage")
+        st.markdown("### DTENTCAP")
         st.dataframe(df_vin2, use_container_width=True)
 
     # =========================
@@ -209,25 +215,25 @@ if file1:
 
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
 
-        df_vin1.to_excel(writer, index=False, sheet_name='VIN_FULL')
+        df_vin1.to_excel(writer, index=False, sheet_name='DTEN')
 
         if not df_vin2.empty:
-            df_vin2.to_excel(writer, index=False, sheet_name='TCAPLinkage')
+            df_vin2.to_excel(writer, index=False, sheet_name='DTENTCAP')
 
-        # 🔥 SUMMARY SHEET
+        # SUMMARY SHEET
         summary_data = []
 
         summary_data.append({
             "Source": "DTEN",
             "Total": len(df_vin1),
-            "Error": count_error(df_vin1)
+            "Error": 0
         })
 
         if not df_vin2.empty:
             summary_data.append({
                 "Source": "DTENTCAP",
                 "Total": len(df_vin2),
-                "Error": count_error(df_vin2)
+                "Error": 0
             })
 
         df_summary = pd.DataFrame(summary_data)
@@ -238,8 +244,8 @@ if file1:
     st.download_button(
         "Download",
         data=output,
-        file_name="b2c-summary.xlsx"
+        file_name="dten-summary.xlsx"
     )
 
 else:
-    st.info("Please upload 1st file first")
+    st.info("Please upload DTEN file first")
