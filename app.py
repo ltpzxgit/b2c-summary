@@ -3,8 +3,8 @@ import pandas as pd
 import re
 from io import BytesIO
 
-st.set_page_config(page_title="ITOSE - VIN BLOCK", layout="wide")
-st.title("ITOSE Tools - VIN + UUID + DeviceID (Block Parser)")
+st.set_page_config(page_title="ITOSE - VIN DEVICE", layout="wide")
+st.title("ITOSE Tools - VIN + DeviceID")
 
 # =========================
 # REGEX
@@ -14,8 +14,6 @@ VIN_REGEX_LIST = [
     r'VIN[:=]\s*([A-Za-z0-9]+)',
     r'\b([A-HJ-NPR-Z0-9]{17})\b'
 ]
-
-UUID_REGEX = r'([a-f0-9\-]{36})'
 
 DEVICE_REGEX_LIST = [
     r'"LDCMID"\s*:\s*"([^"]+)"',
@@ -48,7 +46,7 @@ def extract_device(text):
 datahub_file = st.file_uploader("TCAPLinkageDatahub", type=["xlsx", "csv"])
 
 # =========================
-# PROCESS (BLOCK STATE)
+# PROCESS (DEVICE BLOCK)
 # =========================
 if datahub_file:
 
@@ -56,7 +54,6 @@ if datahub_file:
 
     vin_map = {}
 
-    current_uuid = ""
     current_device = ""
 
     for col in df.columns:
@@ -67,16 +64,12 @@ if datahub_file:
 
             text = str(val)
 
-            # 🔥 update state ก่อน
-            uuid_match = re.search(UUID_REGEX, text)
-            if uuid_match:
-                current_uuid = uuid_match.group(1)
-
+            # 🔥 เจอ Device = เริ่ม block ใหม่
             device = extract_device(text)
             if device:
                 current_device = device
 
-            # 🔥 แล้วค่อยหา VIN
+            # หา VIN
             vins = extract_vins(text)
             if not vins:
                 continue
@@ -84,7 +77,6 @@ if datahub_file:
             for vin in vins:
                 vin_map[vin] = {
                     "VIN": vin,
-                    "UUID": current_uuid,
                     "DeviceID": current_device
                 }
 
@@ -101,9 +93,7 @@ if datahub_file:
     # =========================
     if vin_list:
 
-        df_vin = pd.DataFrame(vin_list)
-        df_vin = df_vin.fillna("")
-
+        df_vin = pd.DataFrame(vin_list).fillna("")
         df_vin = df_vin.reset_index(drop=True)
         df_vin.insert(0, "No.", df_vin.index + 1)
 
@@ -114,14 +104,14 @@ if datahub_file:
         # =========================
         output = BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df_vin.to_excel(writer, index=False, sheet_name='VIN_DATA')
+            df_vin.to_excel(writer, index=False, sheet_name='VIN_DEVICE')
 
         output.seek(0)
 
         st.download_button(
             "Download",
             data=output,
-            file_name="vin-block-final.xlsx"
+            file_name="vin-device.xlsx"
         )
 
     else:
