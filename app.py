@@ -3,8 +3,8 @@ import pandas as pd
 import re
 from io import BytesIO
 
-st.set_page_config(page_title="ITOSE - VIN UUID", layout="wide")
-st.title("ITOSE Tools - VIN + UUID (Datahub Only)")
+st.set_page_config(page_title="ITOSE - VIN CONTEXT", layout="wide")
+st.title("ITOSE Tools - VIN + UUID + DeviceID (Stable Mode)")
 
 # =========================
 # REGEX
@@ -16,6 +16,7 @@ VIN_REGEX_LIST = [
 ]
 
 UUID_REGEX = r'([a-f0-9\-]{36})'
+DEVICE_REGEX = r'"LDCMID"\s*:\s*"([^"]+)"'
 
 # =========================
 # FUNCTIONS
@@ -42,26 +43,36 @@ if datahub_file:
 
     vin_map = {}
 
+    # 🔥 รวมค่าทั้งหมดเป็น list (เรียงตามไฟล์)
+    all_values = []
     for col in df.columns:
         for val in df[col]:
-            if pd.isna(val):
-                continue
+            if pd.notna(val):
+                all_values.append(str(val))
 
-            text = str(val)
+    # 🔥 loop แบบมี context window
+    for i in range(len(all_values)):
 
-            vins = extract_vins(text)
-            if not vins:
-                continue
+        # ปรับ window ได้ (ตอนนี้ 3 บรรทัด)
+        context = " ".join(all_values[max(0, i-1): i+2])
 
-            uuid_match = re.search(UUID_REGEX, text)
-            uuid = uuid_match.group(1) if uuid_match else ""
+        vins = extract_vins(context)
+        if not vins:
+            continue
 
-            for vin in vins:
-                # overwrite → เอาค่าล่าสุดของ VIN
-                vin_map[vin] = {
-                    "VIN": vin,
-                    "UUID": uuid
-                }
+        uuid_match = re.search(UUID_REGEX, context)
+        device_match = re.search(DEVICE_REGEX, context)
+
+        uuid = uuid_match.group(1) if uuid_match else ""
+        device = device_match.group(1) if device_match else ""
+
+        for vin in vins:
+            # overwrite → เอาค่าล่าสุด
+            vin_map[vin] = {
+                "VIN": vin,
+                "UUID": uuid,
+                "DeviceID": device
+            }
 
     vin_list = list(vin_map.values())
 
@@ -80,7 +91,7 @@ if datahub_file:
         df_vin = df_vin.reset_index(drop=True)
         df_vin.insert(0, "No.", df_vin.index + 1)
 
-        st.subheader("VIN + UUID")
+        st.subheader("VIN + UUID + DeviceID")
         st.dataframe(df_vin, use_container_width=True)
 
         # preview
@@ -92,15 +103,15 @@ if datahub_file:
         # =========================
         output = BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df_vin.to_excel(writer, index=False, sheet_name='VIN_UUID')
+            df_vin.to_excel(writer, index=False, sheet_name='VIN_DATA')
 
         output.seek(0)
 
         st.download_button(
-            "Download VIN + UUID",
+            "Download",
             data=output,
-            file_name="vin-uuid.xlsx"
+            file_name="vin-context.xlsx"
         )
 
     else:
-        st.error("❌ ไม่เจอ VIN → regex อาจไม่ match format log")
+        st.error("❌ ไม่เจอ VIN")
