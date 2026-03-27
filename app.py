@@ -5,7 +5,7 @@ import json
 from io import BytesIO
 
 st.set_page_config(page_title="ITOSE - VIN FULL", layout="wide")
-st.title("ITOSE Tools - VIN + DeviceID + Carrier + SimPackage")
+st.title("ITOSE Tools - VIN FULL VERSION")
 
 # =========================
 # FUNCTIONS
@@ -57,42 +57,60 @@ if datahub_file:
             try:
                 data = json.loads(json_str)
 
+                # 🔥 root message + status
+                response_message = ""
+                status_code = ""
+
+                if isinstance(data, dict):
+                    response_message = data.get("message", "")
+                    status_code = data.get("statusCode", "")
+
                 # =========================
-                # LIST CASE
+                # LIST CASE (data อยู่ข้างใน)
                 # =========================
-                if isinstance(data, list):
-                    for item in data:
+                if isinstance(data, dict) and isinstance(data.get("data"), list):
+
+                    for item in data["data"]:
 
                         vin = item.get("vin", "")
                         device = item.get("deviceId", "")
                         carrier = item.get("carrier", "")
                         sim = map_sim(item.get("simPackage", ""))
+                        message = item.get("message", "")
 
                         if vin:
                             vin_map[vin] = {
                                 "VIN": vin,
                                 "DeviceID": device,
                                 "Carrier": carrier,
-                                "SimPackage": sim
+                                "SimPackage": sim,
+                                "Response Message": response_message,
+                                "StatusCode": status_code,
+                                "Message": message
                             }
 
                 # =========================
-                # DICT CASE
+                # fallback (plain list)
                 # =========================
-                elif isinstance(data, dict):
+                elif isinstance(data, list):
+                    for item in data:
 
-                    vin = data.get("vin", "")
-                    device = data.get("deviceId", "")
-                    carrier = data.get("carrier", "")
-                    sim = map_sim(data.get("simPackage", ""))
+                        vin = item.get("vin", "")
+                        device = item.get("deviceId", "")
+                        carrier = item.get("carrier", "")
+                        sim = map_sim(item.get("simPackage", ""))
+                        message = item.get("message", "")
 
-                    if vin:
-                        vin_map[vin] = {
-                            "VIN": vin,
-                            "DeviceID": device,
-                            "Carrier": carrier,
-                            "SimPackage": sim
-                        }
+                        if vin:
+                            vin_map[vin] = {
+                                "VIN": vin,
+                                "DeviceID": device,
+                                "Carrier": carrier,
+                                "SimPackage": sim,
+                                "Response Message": "",
+                                "StatusCode": "",
+                                "Message": message
+                            }
 
             except:
                 continue
@@ -128,7 +146,7 @@ if datahub_file:
         st.download_button(
             "Download",
             data=output,
-            file_name="vin-full.xlsx"
+            file_name="vin-full-final.xlsx"
         )
 
     else:
