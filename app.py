@@ -12,21 +12,13 @@ st.title("ITOSE Tools - B2C Summary")
 # =========================
 def extract_json(text):
     match = re.search(r'(\[.*\])', text)
-    if match:
-        return match.group(1)
-    return None
+    return match.group(1) if match else None
 
 def map_sim(sim):
-    if sim == "C":
-        return "Commercial"
-    elif sim == "R":
-        return "Registration"
-    return sim or ""
+    return "Commercial" if sim == "C" else "Registration" if sim == "R" else sim or ""
 
 def extract_tail(text):
-    response = ""
-    status = ""
-    message = ""
+    response, status, message = "", "", ""
 
     m1 = re.search(r'"message"\s*:\s*"([^"]+)"\s*,\s*"statusCode"', text)
     if m1:
@@ -50,9 +42,6 @@ def extract_uuid(text):
     m = re.search(UUID_REGEX, text)
     return m.group(1) if m else ""
 
-# =========================
-# CORE PROCESS (ใช้ร่วมกัน)
-# =========================
 def process_file(df):
     rows = []
 
@@ -97,6 +86,46 @@ def process_file(df):
 
     return rows
 
+def count_error(df):
+    if df.empty:
+        return 0
+
+    return df[
+        ~df["Response Message"].str.contains(
+            "success|ok|20000",
+            case=False,
+            na=False
+        )
+    ].shape[0]
+
+def summary_card(title, total, error):
+    color = "#22c55e" if error == 0 else "#ef4444"
+
+    st.markdown(f"""
+    <div style="
+        background: linear-gradient(135deg, #0f172a, #1e293b);
+        padding: 25px;
+        border-radius: 18px;
+        text-align: center;
+        border: 1px solid #334155;
+    ">
+        <div style="color:#94a3b8; font-size:16px;">{title}</div>
+        <div style="color:white; font-size:48px; font-weight:700; margin:10px 0;">
+            {total}
+        </div>
+        <div style="
+            margin-top:10px;
+            padding:12px;
+            border-radius:12px;
+            border:1px solid {color};
+            color:{color};
+            font-weight:600;
+        ">
+            Error: {error}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
 # =========================
 # UPLOAD
 # =========================
@@ -112,14 +141,9 @@ if file1:
     df1 = pd.read_csv(file1) if file1.name.endswith(".csv") else pd.read_excel(file1)
     rows1 = process_file(df1)
 
-    st.markdown("### Summary (File 1)")
-    st.metric("VIN ทั้งหมด", len(rows1))
-
     df_vin1 = pd.DataFrame(rows1).fillna("")
     df_vin1 = df_vin1.reset_index(drop=True)
     df_vin1.insert(0, "No.", df_vin1.index + 1)
-
-    st.dataframe(df_vin1, use_container_width=True)
 
     # ===== FILE 2 =====
     df_vin2 = pd.DataFrame()
@@ -128,14 +152,11 @@ if file1:
         df2 = pd.read_csv(file2) if file2.name.endswith(".csv") else pd.read_excel(file2)
         rows2 = process_file(df2)
 
-        st.markdown("### Summary (File 2 - TCAPLinkage)")
-        st.metric("VIN ทั้งหมด (TCAP)", len(rows2))
-
         df_vin2 = pd.DataFrame(rows2).fillna("")
         df_vin2 = df_vin2.reset_index(drop=True)
         df_vin2.insert(0, "No.", df_vin2.index + 1)
 
-        # 🔥 ตัด Carrier / SimPackage / Message ออก
+        # 🔥 ตัด columns
         df_vin2 = df_vin2[[
             "No.",
             "UUID",
@@ -145,6 +166,40 @@ if file1:
             "StatusCode"
         ]]
 
+    # =========================
+    # SUMMARY UI
+    # =========================
+    st.markdown("## Summary")
+
+    cards = []
+
+    cards.append({
+        "title": "DTEN",
+        "total": len(df_vin1),
+        "error": count_error(df_vin1)
+    })
+
+    if not df_vin2.empty:
+        cards.append({
+            "title": "DTENTCAP",
+            "total": len(df_vin2),
+            "error": count_error(df_vin2)
+        })
+
+    cols = st.columns(len(cards))
+
+    for i, card in enumerate(cards):
+        with cols[i]:
+            summary_card(card["title"], card["total"], card["error"])
+
+    # =========================
+    # TABLE
+    # =========================
+    st.markdown("### VIN FULL")
+    st.dataframe(df_vin1, use_container_width=True)
+
+    if not df_vin2.empty:
+        st.markdown("### TCAPLinkage")
         st.dataframe(df_vin2, use_container_width=True)
 
     # =========================
@@ -153,17 +208,37 @@ if file1:
     output = BytesIO()
 
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
+
         df_vin1.to_excel(writer, index=False, sheet_name='VIN_FULL')
 
         if not df_vin2.empty:
             df_vin2.to_excel(writer, index=False, sheet_name='TCAPLinkage')
+
+        # 🔥 SUMMARY SHEET
+        summary_data = []
+
+        summary_data.append({
+            "Source": "DTEN",
+            "Total": len(df_vin1),
+            "Error": count_error(df_vin1)
+        })
+
+        if not df_vin2.empty:
+            summary_data.append({
+                "Source": "DTENTCAP",
+                "Total": len(df_vin2),
+                "Error": count_error(df_vin2)
+            })
+
+        df_summary = pd.DataFrame(summary_data)
+        df_summary.to_excel(writer, index=False, sheet_name='Summary')
 
     output.seek(0)
 
     st.download_button(
         "Download",
         data=output,
-        file_name="b2c-2-sheets.xlsx"
+        file_name="b2c-summary.xlsx"
     )
 
 else:
