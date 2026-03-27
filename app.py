@@ -8,58 +8,59 @@ st.set_page_config(page_title="ITOSE - B2C", layout="wide")
 st.title("ITOSE Tools - B2C Summary")
 
 # =========================
-# UI STYLE (Upload Compact - DTEN Style)
+# UI STYLE (DTEN Style จริง)
 # =========================
 st.markdown("""
 <style>
 .block-container {
-    padding-top: 1.5rem;
+    padding-top: 1.2rem;
     padding-bottom: 1.5rem;
 }
 
-/* Upload Card เตี้ยลง */
-[data-testid="stFileUploader"] {
-    margin-bottom: 6px !important;
+/* === Upload Layout ให้เป็นแนวตั้ง === */
+[data-testid="stFileUploader"] section div {
+    flex-direction: column !important;
+    align-items: flex-start !important;
 }
 
-[data-testid="stFileUploader"] > div {
-    padding: 4px !important;
-}
-
+/* === ลดความสูง card === */
 [data-testid="stFileUploader"] section {
-    padding: 10px 12px !important;
-    border-radius: 10px !important;
-    min-height: 80px !important;
+    padding: 12px !important;
+    border-radius: 12px !important;
+    min-height: unset !important;
 }
 
-/* Text */
+/* === Text === */
 [data-testid="stFileUploader"] p {
     font-size: 13px !important;
     margin: 0 !important;
 }
 
-/* Button */
+/* === Button === */
 [data-testid="stFileUploader"] button {
-    padding: 4px 10px !important;
-    font-size: 12px !important;
+    margin-top: 6px !important;
+    padding: 6px 12px !important;
+    font-size: 13px !important;
 }
 
-/* ลด gap */
-[data-testid="stFileUploader"] section div {
-    gap: 4px !important;
+/* === spacing === */
+[data-testid="stFileUploader"] {
+    margin-bottom: 8px !important;
 }
 
-/* Filename */
+/* === filename === */
 [data-testid="stFileUploader"] small {
     font-size: 12px !important;
 }
 
-/* Label spacing */
+/* === label spacing === */
 label {
     margin-bottom: 4px !important;
 }
 
+/* ========================= */
 /* Summary Card */
+/* ========================= */
 .summary-card {
     background: linear-gradient(135deg, #0f172a, #1e293b);
     padding: 25px;
@@ -180,7 +181,7 @@ def summary_card(title, total, error):
     """, unsafe_allow_html=True)
 
 # =========================
-# UPLOAD (2 Columns แบบ DTEN)
+# UPLOAD (2 ช่อง)
 # =========================
 col1, col2 = st.columns(2)
 
