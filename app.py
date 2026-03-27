@@ -8,7 +8,7 @@ st.set_page_config(page_title="ITOSE - B2C", layout="wide")
 st.title("ITOSE Tools - B2C Summary")
 
 # =========================
-# UI STYLE (Summary + Upload)
+# UI STYLE (Upload Compact)
 # =========================
 st.markdown("""
 <style>
@@ -17,7 +17,7 @@ st.markdown("""
     padding-bottom: 2rem;
 }
 
-/* ===== Upload Compact ===== */
+/* Upload Compact */
 [data-testid="stFileUploader"] > div {
     padding: 8px !important;
 }
@@ -44,18 +44,13 @@ st.markdown("""
     gap: 6px !important;
 }
 
-/* ===== Summary Card ===== */
+/* Summary Card */
 .summary-card {
     background: linear-gradient(135deg, #0f172a, #1e293b);
     padding: 25px;
     border-radius: 18px;
     text-align: center;
     border: 1px solid #334155;
-    transition: 0.2s;
-}
-
-.summary-card:hover {
-    transform: translateY(-3px);
 }
 
 .summary-title {
@@ -172,13 +167,8 @@ def summary_card(title, total, error):
 # =========================
 # UPLOAD
 # =========================
-col1, col2 = st.columns(2)
-
-with col1:
-    file1 = st.file_uploader("DTEN", type=["xlsx", "csv"])
-
-with col2:
-    file2 = st.file_uploader("DTENTCAP", type=["xlsx", "csv"])
+file1 = st.file_uploader("TCAPLinkageDatahub", type=["xlsx", "csv"])
+file2 = st.file_uploader("TCAPLinkage", type=["xlsx", "csv"])
 
 # =========================
 # PROCESS
@@ -217,10 +207,10 @@ if file1:
     st.markdown("## Summary")
 
     cards = []
-    cards.append(("DTEN", len(df_vin1), 0))
+    cards.append(("TCAPLinkageDatahub", len(df_vin1), 0))
 
     if not df_vin2.empty:
-        cards.append(("DTENTCAP", len(df_vin2), 0))
+        cards.append(("TCAPLinkage", len(df_vin2), 0))
 
     cols = st.columns(len(cards))
 
@@ -231,11 +221,11 @@ if file1:
     # =========================
     # TABLE
     # =========================
-    st.markdown("### DTEN")
+    st.markdown("### TCAPLinkageDatahub")
     st.dataframe(df_vin1, use_container_width=True)
 
     if not df_vin2.empty:
-        st.markdown("### DTENTCAP")
+        st.markdown("### TCAPLinkage")
         st.dataframe(df_vin2, use_container_width=True)
 
     # =========================
@@ -245,22 +235,22 @@ if file1:
 
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
 
-        df_vin1.to_excel(writer, index=False, sheet_name='DTEN')
+        df_vin1.to_excel(writer, index=False, sheet_name='VIN_FULL')
 
         if not df_vin2.empty:
-            df_vin2.to_excel(writer, index=False, sheet_name='DTENTCAP')
+            df_vin2.to_excel(writer, index=False, sheet_name='TCAPLinkage')
 
         summary_data = []
 
         summary_data.append({
-            "Source": "DTEN",
+            "Source": "TCAPLinkageDatahub",
             "Total": len(df_vin1),
             "Error": 0
         })
 
         if not df_vin2.empty:
             summary_data.append({
-                "Source": "DTENTCAP",
+                "Source": "TCAPLinkage",
                 "Total": len(df_vin2),
                 "Error": 0
             })
@@ -277,4 +267,4 @@ if file1:
     )
 
 else:
-    st.info("Please upload DTEN file first")
+    st.info("Please upload 1st file first")
