@@ -4,8 +4,8 @@ import re
 import json
 from io import BytesIO
 
-st.set_page_config(page_title="ITOSE - VIN FINAL", layout="wide")
-st.title("ITOSE Tools - VIN FINAL VERSION")
+st.set_page_config(page_title="ITOSE - VIN FINAL + UUID", layout="wide")
+st.title("ITOSE Tools - VIN FINAL + UUID")
 
 # =========================
 # FUNCTIONS
@@ -24,29 +24,32 @@ def map_sim(sim):
     return sim or ""
 
 def extract_tail(text):
-    """
-    ดึง message + statusCode จากท้าย block
-    """
     response = ""
     status = ""
     message = ""
 
-    # response message (Operation Success)
     m1 = re.search(r'"message"\s*:\s*"([^"]+)"\s*,\s*"statusCode"', text)
     if m1:
         response = m1.group(1)
 
-    # statusCode
     m2 = re.search(r'"statusCode"\s*:\s*(\d+)', text)
     if m2:
         status = m2.group(1)
 
-    # message ใน block (Process completed successfully)
-    m3 = re.search(r'"message"\s*:\s*"Process[^"]+"', text)
+    m3 = re.search(r'"message"\s*:\s*"([^"]+)"', text)
     if m3:
-        message = m3.group(0).split(":")[1].strip().replace('"', '')
+        msg_val = m3.group(1)
+        if "Process" in msg_val:
+            message = msg_val
 
     return response, status, message
+
+# 🔥 UUID จากบรรทัดเดียวกับ VIN
+UUID_REGEX = r'([a-f0-9\-]{36})'
+
+def extract_uuid(text):
+    m = re.search(UUID_REGEX, text)
+    return m.group(1) if m else ""
 
 # =========================
 # UPLOAD
@@ -60,7 +63,7 @@ if datahub_file:
 
     df = pd.read_csv(datahub_file) if datahub_file.name.endswith(".csv") else pd.read_excel(datahub_file)
 
-    vin_map = {}
+    rows = []   # 🔥 เปลี่ยนจาก map → list (เพราะ UUID ซ้ำได้)
 
     for col in df.columns:
         for val in df[col]:
@@ -77,45 +80,46 @@ if datahub_file:
             try:
                 data = json.loads(json_str)
 
-                # 🔥 extract tail
                 response, status, msg = extract_tail(text)
+                uuid = extract_uuid(text)   # 🔥 ดึง UUID จาก text เดียวกัน
 
                 if isinstance(data, list):
                     for item in data:
 
                         vin = item.get("vin", "")
+                        if not vin:
+                            continue
+
                         device = item.get("deviceId", "")
                         carrier = item.get("carrier", "")
                         sim = map_sim(item.get("simPackage", ""))
 
-                        if vin:
-                            vin_map[vin] = {
-                                "VIN": vin,
-                                "DeviceID": device,
-                                "Carrier": carrier,
-                                "SimPackage": sim,
-                                "Response Message": response,
-                                "StatusCode": status,
-                                "Message": msg
-                            }
+                        rows.append({
+                            "UUID": uuid,          # 🔥 ใส่ก่อน VIN
+                            "VIN": vin,
+                            "DeviceID": device,
+                            "Carrier": carrier,
+                            "SimPackage": sim,
+                            "Response Message": response,
+                            "StatusCode": status,
+                            "Message": msg
+                        })
 
             except:
                 continue
-
-    vin_list = list(vin_map.values())
 
     # =========================
     # SUMMARY
     # =========================
     st.markdown("### Summary")
-    st.metric("VIN ทั้งหมด", len(vin_list))
+    st.metric("VIN ทั้งหมด", len(rows))
 
     # =========================
     # TABLE
     # =========================
-    if vin_list:
+    if rows:
 
-        df_vin = pd.DataFrame(vin_list).fillna("")
+        df_vin = pd.DataFrame(rows).fillna("")
         df_vin = df_vin.reset_index(drop=True)
         df_vin.insert(0, "No.", df_vin.index + 1)
 
@@ -133,7 +137,7 @@ if datahub_file:
         st.download_button(
             "Download",
             data=output,
-            file_name="vin-final.xlsx"
+            file_name="vin-full-with-uuid.xlsx"
         )
 
     else:
