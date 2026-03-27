@@ -10,32 +10,47 @@ st.title("ITOSE Tools - VIN FINAL + UUID")
 # =========================
 # FUNCTIONS
 # =========================
-def extract_json(text):
-    match = re.search(r'(\[.*\])', text)
-    if match:
-        return match.group(1)
+
+# 🔥 ดึง JSON ARRAY (ข้อมูล VIN)
+def extract_json_array(text):
+    matches = re.findall(r'\[.*?\]', text)
+    for m in matches:
+        try:
+            data = json.loads(m)
+            if isinstance(data, list):
+                return data
+        except:
+            continue
     return None
 
+
+# 🔥 ดึง JSON OBJECT (status / message)
 def extract_tail(text):
     response = ""
     status = ""
     message = ""
 
-    # 🔥 หา JSON object (ท้าย log)
-    match = re.search(r'(\{.*\})', text)
-    if match:
-        try:
-            obj = json.loads(match.group(1))
-            response = obj.get("message", "")
-            status = str(obj.get("statusCode", ""))
-        except:
-            pass
+    matches = re.findall(r'\{[^{}]*\}', text)
 
-    # สำหรับ Datahub
+    for m in matches:
+        try:
+            obj = json.loads(m)
+
+            if isinstance(obj, dict):
+                if "message" in obj and response == "":
+                    response = obj.get("message", "")
+
+                if "statusCode" in obj and status == "":
+                    status = str(obj.get("statusCode", ""))
+
+        except:
+            continue
+
     if "Process" in response:
         message = response
 
     return response, status, message
+
 
 UUID_REGEX = r'([a-f0-9\-]{36})'
 
@@ -43,12 +58,14 @@ def extract_uuid(text):
     m = re.search(UUID_REGEX, text)
     return m.group(1) if m else ""
 
+
 def map_sim(sim):
     if sim == "C":
         return "Commercial"
     elif sim == "R":
         return "Registration"
     return sim or ""
+
 
 # =========================
 # PROCESS FUNCTION
@@ -64,56 +81,50 @@ def process_file(df, mode="datahub"):
 
             text = str(val)
 
-            json_str = extract_json(text)
-            if not json_str:
+            data = extract_json_array(text)
+            if not data:
                 continue
 
-            try:
-                data = json.loads(json_str)
+            response, status, msg = extract_tail(text)
+            uuid = extract_uuid(text)
 
-                response, status, msg = extract_tail(text)
-                uuid = extract_uuid(text)
+            # 🔥 TCAP filter (มี response เท่านั้น)
+            if mode == "tcap" and response == "":
+                continue
 
-                # 🔥 TCAP filter
-                if mode == "tcap" and response == "":
+            for item in data:
+
+                vin = item.get("vin", "")
+                if not vin:
                     continue
 
-                if isinstance(data, list):
-                    for item in data:
+                device = item.get("deviceId", "")
+                carrier = item.get("carrier", "")
+                sim = map_sim(item.get("simPackage", ""))
 
-                        vin = item.get("vin", "")
-                        if not vin:
-                            continue
+                if mode == "datahub":
+                    rows.append({
+                        "UUID": uuid,
+                        "VIN": vin,
+                        "DeviceID": device,
+                        "Carrier": carrier,
+                        "SimPackage": sim,
+                        "Response Message": response,
+                        "StatusCode": status,
+                        "Message": msg
+                    })
 
-                        device = item.get("deviceId", "")
-                        carrier = item.get("carrier", "")
-                        sim = map_sim(item.get("simPackage", ""))
-
-                        if mode == "datahub":
-                            rows.append({
-                                "UUID": uuid,
-                                "VIN": vin,
-                                "DeviceID": device,
-                                "Carrier": carrier,
-                                "SimPackage": sim,
-                                "Response Message": response,
-                                "StatusCode": status,
-                                "Message": msg
-                            })
-
-                        elif mode == "tcap":
-                            rows.append({
-                                "UUID": uuid,
-                                "VIN": vin,
-                                "DeviceID": device,
-                                "Response Message": response,
-                                "StatusCode": status
-                            })
-
-            except:
-                continue
+                elif mode == "tcap":
+                    rows.append({
+                        "UUID": uuid,
+                        "VIN": vin,
+                        "DeviceID": device,
+                        "Response Message": response,
+                        "StatusCode": status
+                    })
 
     return rows
+
 
 # =========================
 # UPLOAD
