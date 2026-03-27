@@ -3,8 +3,8 @@ import pandas as pd
 import re
 from io import BytesIO
 
-st.set_page_config(page_title="ITOSE - TCAP 2 FILES", layout="wide")
-st.title("ITOSE Tools - TCAP (2 Files Version)")
+st.set_page_config(page_title="ITOSE - B2C", layout="wide")
+st.title("ITOSE Tools - B2C")
 
 # =========================
 # REGEX
