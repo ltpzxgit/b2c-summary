@@ -4,8 +4,8 @@ import re
 import json
 from io import BytesIO
 
-st.set_page_config(page_title="ITOSE - VIN FINAL + UUID", layout="wide")
-st.title("ITOSE Tools - VIN FINAL + UUID")
+st.set_page_config(page_title="ITOSE - B2C", layout="wide")
+st.title("ITOSE Tools - B2C Summary")
 
 # =========================
 # FUNCTIONS
