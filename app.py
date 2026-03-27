@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import re
+import json
 from io import BytesIO
 
 st.set_page_config(page_title="ITOSE - VIN Based", layout="wide")
@@ -9,10 +10,6 @@ st.title("TCAPLinkageDatahub → VIN Based Clean")
 # =========================
 # FUNCTIONS
 # =========================
-def get(pattern, text):
-    m = re.search(pattern, text)
-    return m.group(1) if m else None
-
 def clean_result(msg):
     if not msg:
         return None
@@ -20,34 +17,16 @@ def clean_result(msg):
         return "Operation Success"
     return msg
 
-def get_carrier(deviceid, carrier):
-    if carrier:
-        return carrier
-    if isinstance(deviceid, str) and deviceid.startswith(("A","Z")):
-        return "AIS"
-    return "TRUE"
+def get_uuid(text):
+    m = re.search(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} ([a-f0-9\-]{36})', text)
+    return m.group(1) if m else None
 
-def extract(text):
-    vin = get(r'"vin":"([^"]+)"', text)
-    if not vin:
+def get_json_part(text):
+    try:
+        start = text.find("{")
+        return json.loads(text[start:])
+    except:
         return None
-
-    device = get(r'"deviceId":"([^"]+)"', text)
-    carrier = get(r'"carrier":"([^"]+)"', text)
-    sim = get(r'"simPackage":"([^"]+)"', text)
-    msg = get(r'"message":"([^"]+)"', text)
-    uuid = get(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} ([a-f0-9\-]{36})', text)
-    date = get(r'"Sendingtime":"([^"]+)"', text)
-
-    return {
-        "VIN": vin,
-        "UUID": uuid,
-        "DeviceID": device,
-        "Carrier": get_carrier(device, carrier),
-        "SimPackage": sim if sim else "Unknown",
-        "Result": clean_result(msg),
-        "Date": date
-    }
 
 # =========================
 # UPLOAD
@@ -60,29 +39,49 @@ if file:
 
     vin_map = {}
 
-    # =========================
-    # BUILD BY VIN
-    # =========================
     for col in df.columns:
         for val in df[col]:
             if pd.isna(val):
                 continue
 
             text = str(val)
-            data = extract(text)
 
-            if not data:
+            uuid = get_uuid(text)
+            json_data = get_json_part(text)
+
+            if not json_data:
                 continue
 
-            vin = data["VIN"]
+            # 👉 ดึง array data
+            data_list = json_data.get("data", [])
 
-            # convert date
-            dt = pd.to_datetime(data["Date"], errors="coerce")
+            for item in data_list:
 
-            # ถ้ายังไม่มี VIN หรือเจอใหม่กว่า → overwrite
-            if vin not in vin_map or dt > vin_map[vin]["_dt"]:
-                data["_dt"] = dt
-                vin_map[vin] = data
+                vin = item.get("vin")
+                if not vin:
+                    continue
+
+                device = item.get("deviceId")
+                carrier = item.get("carrier")
+                sim = item.get("simPackage")
+                msg = json_data.get("message")  # message อยู่ root
+                date = item.get("Sendingtime")
+
+                dt = pd.to_datetime(date, errors="coerce")
+
+                record = {
+                    "UUID": uuid,
+                    "VIN": vin,
+                    "DeviceID": device,
+                    "Carrier": carrier if carrier else "Unknown",
+                    "SimPackage": sim if sim else "Unknown",
+                    "Result": clean_result(msg),
+                    "_dt": dt
+                }
+
+                # 👉 keep latest per VIN
+                if vin not in vin_map or dt > vin_map[vin]["_dt"]:
+                    vin_map[vin] = record
 
     # =========================
     # CHECK
@@ -93,9 +92,6 @@ if file:
 
     df_clean = pd.DataFrame(vin_map.values())
 
-    # =========================
-    # FINAL FORMAT
-    # =========================
     df_clean = df_clean.sort_values("_dt", ascending=False)
 
     df_clean = df_clean[[
@@ -110,9 +106,6 @@ if file:
     df_clean = df_clean.reset_index(drop=True)
     df_clean.insert(0, "No.", df_clean.index + 1)
 
-    # =========================
-    # SHOW
-    # =========================
     st.success(f"✅ Total VIN: {len(df_clean)}")
     st.dataframe(df_clean, use_container_width=True)
 
