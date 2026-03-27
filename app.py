@@ -78,11 +78,19 @@ if datahub_file:
         device = extract_device(context)
 
         for vin in vins:
-            vin_map[vin] = {
-                "VIN": vin,
-                "UUID": uuid,
-                "DeviceID": device
-            }
+
+            # 🔥 FIX: ไม่ overwrite มั่ว
+            if vin not in vin_map:
+                vin_map[vin] = {
+                    "VIN": vin,
+                    "UUID": uuid,
+                    "DeviceID": device
+                }
+            else:
+                if uuid:
+                    vin_map[vin]["UUID"] = uuid
+                if device:
+                    vin_map[vin]["DeviceID"] = device
 
     vin_list = list(vin_map.values())
 
