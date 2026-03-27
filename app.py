@@ -4,8 +4,8 @@ import re
 import json
 from io import BytesIO
 
-st.set_page_config(page_title="ITOSE - DTEN", layout="wide")
-st.title("ITOSE Tools - DTEN Summary")
+st.set_page_config(page_title="ITOSE - B2C", layout="wide")
+st.title("ITOSE Tools - B2C Summary")
 
 # =========================
 # CSS (SMOOTH CARD)
@@ -341,5 +341,5 @@ if dten_file and tcap_file and req_file and res_file:
     st.download_button(
         "Download Summary",
         data=output,
-        file_name="dten-summary.xlsx"
+        file_name="b2c-summary.xlsx"
     )
