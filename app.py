@@ -8,55 +8,40 @@ st.set_page_config(page_title="ITOSE - B2C", layout="wide")
 st.title("ITOSE Tools - B2C Summary")
 
 # =========================
-# UI STYLE (Upload Compact - DTEN Style)
+# UI STYLE (Upload Compact)
 # =========================
 st.markdown("""
 <style>
 .block-container {
-    padding-top: 1.5rem;
-    padding-bottom: 1.5rem;
+    padding-top: 2rem;
+    padding-bottom: 2rem;
 }
 
-/* Upload Card เตี้ยลง */
-[data-testid="stFileUploader"] {
-    margin-bottom: 6px !important;
-}
-
+/* Upload Compact */
 [data-testid="stFileUploader"] > div {
-    padding: 4px !important;
+    padding: 8px !important;
 }
 
 [data-testid="stFileUploader"] section {
-    padding: 10px 12px !important;
-    border-radius: 10px !important;
-    min-height: 80px !important;
+    padding: 14px !important;
+    border-radius: 12px !important;
 }
 
-/* Text */
 [data-testid="stFileUploader"] p {
-    font-size: 13px !important;
-    margin: 0 !important;
+    font-size: 14px !important;
 }
 
-/* Button */
 [data-testid="stFileUploader"] button {
-    padding: 4px 10px !important;
-    font-size: 12px !important;
+    padding: 6px 12px !important;
+    font-size: 13px !important;
 }
 
-/* ลด gap */
+[data-testid="stFileUploader"] {
+    margin-bottom: 10px !important;
+}
+
 [data-testid="stFileUploader"] section div {
-    gap: 4px !important;
-}
-
-/* Filename */
-[data-testid="stFileUploader"] small {
-    font-size: 12px !important;
-}
-
-/* Label spacing */
-label {
-    margin-bottom: 4px !important;
+    gap: 6px !important;
 }
 
 /* Summary Card */
@@ -180,15 +165,10 @@ def summary_card(title, total, error):
     """, unsafe_allow_html=True)
 
 # =========================
-# UPLOAD (2 Columns แบบ DTEN)
+# UPLOAD
 # =========================
-col1, col2 = st.columns(2)
-
-with col1:
-    file1 = st.file_uploader("TCAPLinkageDatahub", type=["xlsx", "csv"])
-
-with col2:
-    file2 = st.file_uploader("TCAPLinkage", type=["xlsx", "csv"])
+file1 = st.file_uploader("TCAPLinkageDatahub", type=["xlsx", "csv"])
+file2 = st.file_uploader("TCAPLinkage", type=["xlsx", "csv"])
 
 # =========================
 # PROCESS
