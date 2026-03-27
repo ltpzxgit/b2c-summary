@@ -4,21 +4,22 @@ import re
 from io import BytesIO
 
 st.set_page_config(page_title="ITOSE - TCAP 2 FILES", layout="wide")
-st.title("ITOSE Tools - TCAP (2 Files Version)")
+st.title("ITOSE Tools - TCAP (VIN Focus Version)")
 
 # =========================
 # REGEX
 # =========================
-PAIR_REGEX = r'"LDCMID":"([A-Za-z0-9\-]+)".*?"StatusReg":"([^"]+)".*?"ResDate":"([^"]+)"'
+UUID_REGEX = r'([a-f0-9\-]{36})'
+VIN_REGEX = r'"vin"\s*:\s*"([^"]+)"'
+DEVICE_REGEX = r'"LDCMID"\s*:\s*"([^"]+)"'
+RESULT_REGEX = r'"message"\s*:\s*"([^"]+)"'
+SIM_REGEX = r'"simPackage"\s*:\s*"([^"]+)"'
 
 TCAP_REGEX = r'"deviceId":"([^"]+)".*?"IMEI":"([^"]+)".*?"ICCID":"([^"]+)".*?"IMSI":"([^"]+)".*?"prodStatus":"([^"]+)".*?"prodDate":"([^"]+)".*?"sendDate":"([^"]+)".*?"typeStatus":"([^"]+)"'
 
 # =========================
 # FUNCTIONS
 # =========================
-def extract_pairs(text):
-    return re.findall(PAIR_REGEX, text)
-
 def extract_tcap(text):
     return re.findall(TCAP_REGEX, text)
 
@@ -31,10 +32,10 @@ def get_carrier(deviceid):
 # HIGHLIGHT
 # =========================
 def highlight_error_datahub(row):
-    return ['background-color: #ffcccc' if row["Result"] != "Process completed successfully" else '' for _ in row]
+    return ['background-color: #ffe6e6' if "success" not in row["Result"].lower() else '' for _ in row]
 
 def highlight_error_tcap(row):
-    return ['background-color: #ffcccc' if row["TypeStatus"] != "OK" else '' for _ in row]
+    return ['background-color: #ffe6e6' if row["TypeStatus"] != "OK" else '' for _ in row]
 
 # =========================
 # UPLOAD
@@ -56,33 +57,54 @@ if datahub_file and tcap_file:
     df_tcap = pd.read_csv(tcap_file) if tcap_file.name.endswith(".csv") else pd.read_excel(tcap_file)
 
     # =========================
-    # ✅ DATAHUB (Batch Logic)
+    # 🔥 DATAHUB (VIN LOGIC)
     # =========================
-    device_map = {}
+    vin_map = {}
 
     for col in df_datahub.columns:
         for val in df_datahub[col]:
             if pd.isna(val):
                 continue
 
-            for d, s, dt in extract_pairs(str(val)):
-                # เก็บ "ตัวล่าสุด" ของแต่ละ DeviceID
-                device_map[d] = {
-                    "DeviceID": d,
-                    "Result": s.strip(),
-                    "Date Time": dt
-                }
+            text = str(val)
 
-    df1 = pd.DataFrame(device_map.values())
+            vin_match = re.search(VIN_REGEX, text)
+            if not vin_match:
+                continue  # ❌ ไม่มี VIN = ไม่เอา
 
-    df1["Carrier"] = df1["DeviceID"].apply(get_carrier)
+            vin = vin_match.group(1)
 
-    df1 = df1.sort_values(by="Date Time", ascending=False)
+            uuid_match = re.search(UUID_REGEX, text)
+            device_match = re.search(DEVICE_REGEX, text)
+            result_match = re.search(RESULT_REGEX, text)
+            sim_match = re.search(SIM_REGEX, text)
+
+            uuid = uuid_match.group(1) if uuid_match else ""
+            device = device_match.group(1) if device_match else ""
+            result = result_match.group(1).strip() if result_match else ""
+            sim = sim_match.group(1) if sim_match else ""
+
+            # overwrite → เอาตัวล่าสุดต่อ VIN
+            vin_map[vin] = {
+                "VIN": vin,
+                "UUID": uuid,
+                "DeviceID": device,
+                "Carrier": get_carrier(device),
+                "SimPackage": sim,
+                "Result": result
+            }
+
+    if not vin_map:
+        st.error("❌ ไม่พบ VIN ในไฟล์ Datahub (regex อาจไม่ match)")
+        st.stop()
+
+    df1 = pd.DataFrame(vin_map.values())
+
     df1 = df1.reset_index(drop=True)
     df1.insert(0, "No.", df1.index + 1)
 
     # =========================
-    # TCAPLinkage
+    # 🔥 TCAP
     # =========================
     trows = []
 
@@ -103,9 +125,12 @@ if datahub_file and tcap_file:
                     "TypeStatus": ts.strip()
                 })
 
+    if not trows:
+        st.error("❌ ไม่พบข้อมูล TCAP")
+        st.stop()
+
     df2 = pd.DataFrame(trows).drop_duplicates(subset=["DeviceID", "IMEI"])
 
-    df2 = df2.sort_values(by="SendDate", ascending=False)
     df2 = df2.reset_index(drop=True)
     df2.insert(0, "No.", df2.index + 1)
 
@@ -113,7 +138,7 @@ if datahub_file and tcap_file:
     # COUNT
     # =========================
     datahub_total = len(df1)
-    datahub_error = len(df1[df1["Result"] != "Process completed successfully"])
+    datahub_error = len(df1[~df1["Result"].str.lower().str.contains("success")])
 
     tcap_total = len(df2)
     tcap_error = len(df2[df2["TypeStatus"] != "OK"])
@@ -126,34 +151,34 @@ if datahub_file and tcap_file:
     col1, col2 = st.columns(2)
 
     with col1:
-        st.metric("TCAPLinkageDatahub", datahub_total)
+        st.metric("Datahub (VIN)", datahub_total)
         st.write(f"Error: {datahub_error}")
 
     with col2:
-        st.metric("TCAPLinkage", tcap_total)
+        st.metric("TCAP", tcap_total)
         st.write(f"Error: {tcap_error}")
 
     # =========================
     # TABLE
     # =========================
-    st.subheader("TCAPLinkageDatahub")
-    st.dataframe(df1.style.apply(highlight_error_datahub, axis=1))
+    st.subheader("TCAPLinkageDatahub (VIN Focus)")
+    st.dataframe(df1.style.apply(highlight_error_datahub, axis=1), use_container_width=True)
 
     st.subheader("TCAPLinkage")
-    st.dataframe(df2.style.apply(highlight_error_tcap, axis=1))
+    st.dataframe(df2.style.apply(highlight_error_tcap, axis=1), use_container_width=True)
 
     # =========================
     # EXPORT
     # =========================
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df1.to_excel(writer, index=False, sheet_name='TCAPLinkageDatahub')
-        df2.to_excel(writer, index=False, sheet_name='TCAPLinkage')
+        df1.to_excel(writer, index=False, sheet_name='Datahub_VIN')
+        df2.to_excel(writer, index=False, sheet_name='TCAP')
 
     output.seek(0)
 
     st.download_button(
         "Download Summary",
         data=output,
-        file_name="tcap-summary.xlsx"
+        file_name="tcap-vin-summary.xlsx"
     )
