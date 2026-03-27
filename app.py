@@ -85,7 +85,7 @@ def parse_text_auto(text):
 
 
 # =========================
-# UNIVERSAL PARSER (ใช้กับทุกไฟล์)
+# UNIVERSAL PARSER
 # =========================
 def process_file(df_raw):
     rows = []
@@ -104,14 +104,24 @@ def process_file(df_raw):
                 item["UUID"] = uuid
                 rows.append(item)
 
+    # ❌ ไม่มี data → ไม่ต้องสร้าง df
+    if not rows:
+        return None
+
     df = pd.DataFrame(rows)
 
-    if not df.empty:
-        df = df.drop_duplicates(subset=["VIN", "DeviceID"])
-        df = df.reset_index(drop=True)
-        df.insert(0, "No.", df.index + 1)
+    df = df.drop_duplicates(subset=["VIN", "DeviceID"])
+    df = df.reset_index(drop=True)
+    df.insert(0, "No.", df.index + 1)
 
     return df
+
+
+# =========================
+# HIGHLIGHT
+# =========================
+def highlight_error(row):
+    return ['background-color: #ffe6e6' if str(row["StatusCode"]) != "200" else '' for _ in row]
 
 
 # =========================
@@ -138,43 +148,49 @@ if b2c_file and tcap_file and req_file:
     df_tcap_raw = pd.read_csv(tcap_file) if tcap_file.name.endswith(".csv") else pd.read_excel(tcap_file)
     df_req_raw = pd.read_csv(req_file) if req_file.name.endswith(".csv") else pd.read_excel(req_file)
 
-    # 👇 ใช้ parser เดียวกันทั้งหมด
+    # ✅ ใช้ parser เดียวกันหมด
     df_b2c = process_file(df_b2c_raw)
     df_tcap = process_file(df_tcap_raw)
     df_req = process_file(df_req_raw)
 
     # =========================
-    # HIGHLIGHT
-    # =========================
-    def highlight_error(row):
-        return ['background-color: #ffcccc' if str(row["StatusCode"]) != "200" else '' for _ in row]
-
-    # =========================
     # SHOW
     # =========================
     st.subheader("B2CDataHubLinkage")
-    st.dataframe(df_b2c.style.apply(highlight_error, axis=1))
+    if df_b2c is not None:
+        st.dataframe(df_b2c.style.apply(highlight_error, axis=1))
+    else:
+        st.warning("ไม่มี log ที่ parse ได้")
 
     st.subheader("B2CTCAPLinkage")
-    st.dataframe(df_tcap.style.apply(highlight_error, axis=1))
+    if df_tcap is not None:
+        st.dataframe(df_tcap.style.apply(highlight_error, axis=1))
+    else:
+        st.warning("ไม่มี log ที่ parse ได้")
 
     st.subheader("VehicleSettingRequester")
-    st.dataframe(df_req.style.apply(highlight_error, axis=1))
+    if df_req is not None:
+        st.dataframe(df_req.style.apply(highlight_error, axis=1))
+    else:
+        st.warning("ไม่มี log ที่ parse ได้")
 
     # =========================
-    # EXPORT
+    # EXPORT (เฉพาะที่มี data)
     # =========================
     output = BytesIO()
 
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df_b2c.to_excel(writer, index=False, sheet_name='B2CDataHubLinkage')
-        df_tcap.to_excel(writer, index=False, sheet_name='B2CTCAPLinkage')
-        df_req.to_excel(writer, index=False, sheet_name='VehicleSettingRequester')
+        if df_b2c is not None:
+            df_b2c.to_excel(writer, index=False, sheet_name='B2CDataHubLinkage')
+        if df_tcap is not None:
+            df_tcap.to_excel(writer, index=False, sheet_name='B2CTCAPLinkage')
+        if df_req is not None:
+            df_req.to_excel(writer, index=False, sheet_name='VehicleSettingRequester')
 
     output.seek(0)
 
     st.download_button(
-        "Download Excel (3 Sheets)",
+        "Download Excel (Only Valid Sheets)",
         data=output,
         file_name="B2C_AUTO.xlsx"
     )
