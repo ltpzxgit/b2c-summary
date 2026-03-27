@@ -1,10 +1,27 @@
 import streamlit as st
 import pandas as pd
+import re
 import json
 from io import BytesIO
 
 st.set_page_config(page_title="ITOSE - VIN JSON", layout="wide")
-st.title("ITOSE Tools - VIN + DeviceID (JSON Correct)")
+st.title("ITOSE Tools - VIN + DeviceID (Hybrid Mode)")
+
+# =========================
+# FUNCTIONS
+# =========================
+def extract_json(text):
+    # ดึง JSON array ก่อน
+    match = re.search(r'(\[.*\])', text)
+    if match:
+        return match.group(1)
+
+    # fallback: dict
+    match = re.search(r'(\{.*\})', text)
+    if match:
+        return match.group(1)
+
+    return None
 
 # =========================
 # UPLOAD
@@ -12,7 +29,7 @@ st.title("ITOSE Tools - VIN + DeviceID (JSON Correct)")
 datahub_file = st.file_uploader("TCAPLinkageDatahub", type=["xlsx", "csv"])
 
 # =========================
-# PROCESS (FULL JSON PARSE)
+# PROCESS
 # =========================
 if datahub_file:
 
@@ -28,10 +45,14 @@ if datahub_file:
 
             text = str(val)
 
-            try:
-                data = json.loads(text)
+            json_str = extract_json(text)
+            if not json_str:
+                continue
 
-                # 🔥 case 1: เป็น list
+            try:
+                data = json.loads(json_str)
+
+                # 🔥 list case
                 if isinstance(data, list):
                     for item in data:
                         vin = item.get("vin", "")
@@ -43,7 +64,7 @@ if datahub_file:
                                 "DeviceID": device
                             }
 
-                # 🔥 case 2: เป็น dict
+                # 🔥 dict case
                 elif isinstance(data, dict):
                     vin = data.get("vin", "")
                     device = data.get("deviceId", "")
@@ -55,7 +76,7 @@ if datahub_file:
                         }
 
             except:
-                continue  # ข้ามเฉพาะอัน parse ไม่ได้
+                continue
 
     vin_list = list(vin_map.values())
 
@@ -88,7 +109,7 @@ if datahub_file:
         st.download_button(
             "Download",
             data=output,
-            file_name="vin-json-final.xlsx"
+            file_name="vin-final.xlsx"
         )
 
     else:
