@@ -3,8 +3,8 @@ import pandas as pd
 import re
 from io import BytesIO
 
-st.set_page_config(page_title="ITOSE - VIN ROW", layout="wide")
-st.title("ITOSE Tools - VIN + UUID + DeviceID")
+st.set_page_config(page_title="ITOSE - VIN BLOCK", layout="wide")
+st.title("ITOSE Tools - VIN + UUID + DeviceID (Block Parser)")
 
 # =========================
 # REGEX
@@ -48,7 +48,7 @@ def extract_device(text):
 datahub_file = st.file_uploader("TCAPLinkageDatahub", type=["xlsx", "csv"])
 
 # =========================
-# PROCESS
+# PROCESS (BLOCK STATE)
 # =========================
 if datahub_file:
 
@@ -56,34 +56,37 @@ if datahub_file:
 
     vin_map = {}
 
-    # 🔥 ROW-BASED ONLY
-    for _, row in df.iterrows():
+    current_uuid = ""
+    current_device = ""
 
-        row_text = " ".join([str(v) for v in row if pd.notna(v)])
+    for col in df.columns:
+        for val in df[col]:
 
-        vins = extract_vins(row_text)
-        if not vins:
-            continue
+            if pd.isna(val):
+                continue
 
-        uuid_match = re.search(UUID_REGEX, row_text)
-        device = extract_device(row_text)
+            text = str(val)
 
-        uuid = uuid_match.group(1) if uuid_match else ""
+            # 🔥 update state ก่อน
+            uuid_match = re.search(UUID_REGEX, text)
+            if uuid_match:
+                current_uuid = uuid_match.group(1)
 
-        for vin in vins:
+            device = extract_device(text)
+            if device:
+                current_device = device
 
-            # 🔥 FIX: ไม่ overwrite มั่ว
-            if vin not in vin_map:
+            # 🔥 แล้วค่อยหา VIN
+            vins = extract_vins(text)
+            if not vins:
+                continue
+
+            for vin in vins:
                 vin_map[vin] = {
                     "VIN": vin,
-                    "UUID": uuid,
-                    "DeviceID": device
+                    "UUID": current_uuid,
+                    "DeviceID": current_device
                 }
-            else:
-                if uuid:
-                    vin_map[vin]["UUID"] = uuid
-                if device:
-                    vin_map[vin]["DeviceID"] = device
 
     vin_list = list(vin_map.values())
 
@@ -99,10 +102,7 @@ if datahub_file:
     if vin_list:
 
         df_vin = pd.DataFrame(vin_list)
-
-        # กัน null
-        df_vin["UUID"] = df_vin["UUID"].fillna("")
-        df_vin["DeviceID"] = df_vin["DeviceID"].fillna("")
+        df_vin = df_vin.fillna("")
 
         df_vin = df_vin.reset_index(drop=True)
         df_vin.insert(0, "No.", df_vin.index + 1)
@@ -121,7 +121,7 @@ if datahub_file:
         st.download_button(
             "Download",
             data=output,
-            file_name="vin-row-final.xlsx"
+            file_name="vin-block-final.xlsx"
         )
 
     else:
