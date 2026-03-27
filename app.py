@@ -3,153 +3,112 @@ import pandas as pd
 import re
 from io import BytesIO
 
-st.set_page_config(page_title="ITOSE - B2C", layout="wide")
-st.title("ITOSE Tools - B2C")
+st.set_page_config(page_title="ITOSE - Datahub Clean", layout="wide")
+st.title("TCAPLinkageDatahub → Clean Columns")
 
 # =========================
 # REGEX
 # =========================
-PAIR_REGEX = r'"LDCMID":"([A-Za-z0-9\-]+)".*?"StatusReg":"([^"]+)".*?"ResDate":"([^"]+)"'
-
-TCAP_REGEX = r'"deviceId":"([^"]+)".*?"IMEI":"([^"]+)".*?"ICCID":"([^"]+)".*?"IMSI":"([^"]+)".*?"prodStatus":"([^"]+)".*?"prodDate":"([^"]+)".*?"sendDate":"([^"]+)".*?"typeStatus":"([^"]+)"'
+UUID_REGEX = r'([a-f0-9\-]{36})'
+PAIR_REGEX = r'"LDCMID":"([^"]+)".*?"StatusReg":"([^"]+)".*?"ResDate":"([^"]+)"'
+VIN_REGEX = r'"vin":"([^"]+)"'
+SIM_REGEX = r'"simPackage":"([^"]+)"'
 
 # =========================
 # FUNCTIONS
 # =========================
-def extract_pairs(text):
-    return re.findall(PAIR_REGEX, text)
-
-def extract_tcap(text):
-    return re.findall(TCAP_REGEX, text)
-
 def get_carrier(deviceid):
     if isinstance(deviceid, str) and deviceid.startswith(("A", "Z")):
         return "AIS"
     return "TRUE"
 
+def extract_all(text):
+    uuid = re.search(UUID_REGEX, text)
+    vin = re.search(VIN_REGEX, text)
+    sim = re.search(SIM_REGEX, text)
+
+    pairs = re.findall(PAIR_REGEX, text)
+
+    results = []
+    for d, s, dt in pairs:
+        results.append({
+            "UUID": uuid.group(1) if uuid else None,
+            "VIN": vin.group(1) if vin else None,
+            "DeviceID": d,
+            "Result": s,
+            "Date": dt,
+            "SimPackage": sim.group(1) if sim else None
+        })
+
+    return results
+
 # =========================
-# HIGHLIGHT
+# UPLOAD
 # =========================
-def highlight_error_datahub(row):
-    return ['background-color: #ffcccc' if row["Result"] != "Process completed successfully" else '' for _ in row]
+file = st.file_uploader("Upload TCAPLinkageDatahub", type=["xlsx","csv"])
 
-def highlight_error_tcap(row):
-    return ['background-color: #ffcccc' if row["TypeStatus"] != "OK" else '' for _ in row]
+if file:
 
-# =========================
-# UPLOAD (เหลือ 2 ไฟล์)
-# =========================
-col1, col2 = st.columns(2)
+    df = pd.read_csv(file) if file.name.endswith(".csv") else pd.read_excel(file)
 
-with col1:
-    datahub_file = st.file_uploader("TCAPLinkageDatahub", type=["xlsx", "csv"])
-
-with col2:
-    tcap_file = st.file_uploader("TCAPLinkage", type=["xlsx", "csv"])
-
-# =========================
-# PROCESS
-# =========================
-if datahub_file and tcap_file:
-
-    df_datahub = pd.read_csv(datahub_file) if datahub_file.name.endswith(".csv") else pd.read_excel(datahub_file)
-    df_tcap = pd.read_csv(tcap_file) if tcap_file.name.endswith(".csv") else pd.read_excel(tcap_file)
-
-    # =========================
-    # TCAPLinkageDatahub
-    # =========================
     rows = []
 
-    for col in df_datahub.columns:
-        for val in df_datahub[col]:
+    # =========================
+    # PARSE LOG
+    # =========================
+    for col in df.columns:
+        for val in df[col]:
             if pd.isna(val): continue
 
-            for d, s, dt in extract_pairs(str(val)):
-                rows.append({
-                    "DeviceID": d,
-                    "Result": s,
-                    "Date Time": dt
-                })
+            text = str(val)
+            extracted = extract_all(text)
 
-    df1 = pd.DataFrame(rows).drop_duplicates()
-    df1["Result"] = df1["Result"].astype(str).str.strip()
-    df1["Carrier"] = df1["DeviceID"].apply(get_carrier)
+            for r in extracted:
+                r["Carrier"] = get_carrier(r["DeviceID"])
+                rows.append(r)
 
-    df1 = df1.reset_index(drop=True)
-    df1.insert(0, "No.", df1.index + 1)
+    df_clean = pd.DataFrame(rows)
 
     # =========================
-    # TCAPLinkage
+    # CLEAN
     # =========================
-    trows = []
+    df_clean["Date"] = pd.to_datetime(df_clean["Date"], errors="coerce")
 
-    for col in df_tcap.columns:
-        for val in df_tcap[col]:
-            if pd.isna(val): continue
+    # 👉 VIN ซ้ำ เอา latest
+    df_clean = df_clean.sort_values("Date").drop_duplicates(subset=["VIN"], keep="last")
 
-            for d, imei, iccid, imsi, prod, pd1, sd, ts in extract_tcap(str(val)):
-                trows.append({
-                    "DeviceID": d,
-                    "IMEI": imei,
-                    "ICCID": iccid,
-                    "IMSI": imsi,
-                    "ProdStatus": prod,
-                    "ProdDate": pd1,
-                    "SendDate": sd,
-                    "TypeStatus": ts
-                })
-
-    df2 = pd.DataFrame(trows).drop_duplicates(subset=["DeviceID","IMEI"])
-    df2["TypeStatus"] = df2["TypeStatus"].astype(str).str.strip()
-
-    df2 = df2.reset_index(drop=True)
-    df2.insert(0, "No.", df2.index + 1)
+    # 👉 Result clean
+    df_clean["Result"] = df_clean["Result"].astype(str).str.strip()
 
     # =========================
-    # COUNT
+    # SELECT COLUMNS
     # =========================
-    datahub_total = len(df1)
-    datahub_error = len(df1[df1["Result"] != "Process completed successfully"])
+    df_clean = df_clean[[
+        "UUID",
+        "VIN",
+        "DeviceID",
+        "Carrier",
+        "SimPackage",
+        "Result"
+    ]]
 
-    tcap_total = len(df2)
-    tcap_error = len(df2[df2["TypeStatus"] != "OK"])
-
-    # =========================
-    # SUMMARY
-    # =========================
-    st.markdown("### Summary")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.metric("TCAPLinkageDatahub", datahub_total)
-        st.write(f"Error: {datahub_error}")
-
-    with col2:
-        st.metric("TCAPLinkage", tcap_total)
-        st.write(f"Error: {tcap_error}")
+    df_clean = df_clean.reset_index(drop=True)
+    df_clean.insert(0, "No.", df_clean.index + 1)
 
     # =========================
-    # TABLE
+    # SHOW
     # =========================
-    st.subheader("TCAPLinkageDatahub")
-    st.dataframe(df1.style.apply(highlight_error_datahub, axis=1))
-
-    st.subheader("TCAPLinkage")
-    st.dataframe(df2.style.apply(highlight_error_tcap, axis=1))
+    st.dataframe(df_clean)
 
     # =========================
-    # EXPORT (เหลือ 2 Sheet)
+    # EXPORT
     # =========================
     output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df1.to_excel(writer, index=False, sheet_name='TCAPLinkageDatahub')
-        df2.to_excel(writer, index=False, sheet_name='TCAPLinkage')
-
+    df_clean.to_excel(output, index=False)
     output.seek(0)
 
     st.download_button(
-        "Download Summary",
+        "Download Clean Data",
         data=output,
-        file_name="b2c-summary.xlsx"
+        file_name="datahub_clean.xlsx"
     )
