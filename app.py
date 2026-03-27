@@ -16,7 +16,13 @@ VIN_REGEX_LIST = [
 ]
 
 UUID_REGEX = r'([a-f0-9\-]{36})'
-DEVICE_REGEX = r'"LDCMID"\s*:\s*"([^"]+)"'
+
+DEVICE_REGEX_LIST = [
+    r'"LDCMID"\s*:\s*"([^"]+)"',
+    r'"deviceId"\s*:\s*"([^"]+)"',
+    r'"deviceID"\s*:\s*"([^"]+)"',
+    r'"ldcMid"\s*:\s*"([^"]+)"'
+]
 
 # =========================
 # FUNCTIONS
@@ -28,6 +34,13 @@ def extract_vins(text):
         for m in matches:
             vins.add(m.strip())
     return vins
+
+def extract_device(text):
+    for pattern in DEVICE_REGEX_LIST:
+        match = re.search(pattern, text)
+        if match:
+            return match.group(1)
+    return ""
 
 # =========================
 # UPLOAD
@@ -60,10 +73,9 @@ if datahub_file:
             continue
 
         uuid_match = re.search(UUID_REGEX, context)
-        device_match = re.search(DEVICE_REGEX, context)
-
         uuid = uuid_match.group(1) if uuid_match else ""
-        device = device_match.group(1) if device_match else ""
+
+        device = extract_device(context)
 
         for vin in vins:
             vin_map[vin] = {
