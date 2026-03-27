@@ -37,7 +37,7 @@ def highlight_error_tcap(row):
     return ['background-color: #ffcccc' if row["TypeStatus"] != "OK" else '' for _ in row]
 
 # =========================
-# UPLOAD (เหลือ 2 ไฟล์)
+# UPLOAD
 # =========================
 col1, col2 = st.columns(2)
 
@@ -56,25 +56,28 @@ if datahub_file and tcap_file:
     df_tcap = pd.read_csv(tcap_file) if tcap_file.name.endswith(".csv") else pd.read_excel(tcap_file)
 
     # =========================
-    # TCAPLinkageDatahub
+    # ✅ DATAHUB (Batch Logic)
     # =========================
-    rows = []
+    device_map = {}
 
     for col in df_datahub.columns:
         for val in df_datahub[col]:
-            if pd.isna(val): continue
+            if pd.isna(val):
+                continue
 
             for d, s, dt in extract_pairs(str(val)):
-                rows.append({
+                # เก็บ "ตัวล่าสุด" ของแต่ละ DeviceID
+                device_map[d] = {
                     "DeviceID": d,
-                    "Result": s,
+                    "Result": s.strip(),
                     "Date Time": dt
-                })
+                }
 
-    df1 = pd.DataFrame(rows).drop_duplicates()
-    df1["Result"] = df1["Result"].astype(str).str.strip()
+    df1 = pd.DataFrame(device_map.values())
+
     df1["Carrier"] = df1["DeviceID"].apply(get_carrier)
 
+    df1 = df1.sort_values(by="Date Time", ascending=False)
     df1 = df1.reset_index(drop=True)
     df1.insert(0, "No.", df1.index + 1)
 
@@ -85,7 +88,8 @@ if datahub_file and tcap_file:
 
     for col in df_tcap.columns:
         for val in df_tcap[col]:
-            if pd.isna(val): continue
+            if pd.isna(val):
+                continue
 
             for d, imei, iccid, imsi, prod, pd1, sd, ts in extract_tcap(str(val)):
                 trows.append({
@@ -96,12 +100,12 @@ if datahub_file and tcap_file:
                     "ProdStatus": prod,
                     "ProdDate": pd1,
                     "SendDate": sd,
-                    "TypeStatus": ts
+                    "TypeStatus": ts.strip()
                 })
 
-    df2 = pd.DataFrame(trows).drop_duplicates(subset=["DeviceID","IMEI"])
-    df2["TypeStatus"] = df2["TypeStatus"].astype(str).str.strip()
+    df2 = pd.DataFrame(trows).drop_duplicates(subset=["DeviceID", "IMEI"])
 
+    df2 = df2.sort_values(by="SendDate", ascending=False)
     df2 = df2.reset_index(drop=True)
     df2.insert(0, "No.", df2.index + 1)
 
@@ -139,7 +143,7 @@ if datahub_file and tcap_file:
     st.dataframe(df2.style.apply(highlight_error_tcap, axis=1))
 
     # =========================
-    # EXPORT (เหลือ 2 Sheet)
+    # EXPORT
     # =========================
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
