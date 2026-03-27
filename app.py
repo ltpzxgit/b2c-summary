@@ -16,31 +16,24 @@ def extract_json(text):
         return match.group(1)
     return None
 
-def map_sim(sim):
-    if sim == "C":
-        return "Commercial"
-    elif sim == "R":
-        return "Registration"
-    return sim or ""
-
 def extract_tail(text):
     response = ""
     status = ""
     message = ""
 
-    m1 = re.search(r'"message"\s*:\s*"([^"]+)"\s*,\s*"statusCode"', text)
-    if m1:
-        response = m1.group(1)
+    # 🔥 หา JSON object (ท้าย log)
+    match = re.search(r'(\{.*\})', text)
+    if match:
+        try:
+            obj = json.loads(match.group(1))
+            response = obj.get("message", "")
+            status = str(obj.get("statusCode", ""))
+        except:
+            pass
 
-    m2 = re.search(r'"statusCode"\s*:\s*(\d+)', text)
-    if m2:
-        status = m2.group(1)
-
-    m3 = re.search(r'"message"\s*:\s*"([^"]+)"', text)
-    if m3:
-        msg_val = m3.group(1)
-        if "Process" in msg_val:
-            message = msg_val
+    # สำหรับ Datahub
+    if "Process" in response:
+        message = response
 
     return response, status, message
 
@@ -49,6 +42,13 @@ UUID_REGEX = r'([a-f0-9\-]{36})'
 def extract_uuid(text):
     m = re.search(UUID_REGEX, text)
     return m.group(1) if m else ""
+
+def map_sim(sim):
+    if sim == "C":
+        return "Commercial"
+    elif sim == "R":
+        return "Registration"
+    return sim or ""
 
 # =========================
 # PROCESS FUNCTION
@@ -74,7 +74,7 @@ def process_file(df, mode="datahub"):
                 response, status, msg = extract_tail(text)
                 uuid = extract_uuid(text)
 
-                # 🔥 TCAP: filter response ว่าง
+                # 🔥 TCAP filter
                 if mode == "tcap" and response == "":
                     continue
 
@@ -89,7 +89,6 @@ def process_file(df, mode="datahub"):
                         carrier = item.get("carrier", "")
                         sim = map_sim(item.get("simPackage", ""))
 
-                        # -------- Datahub --------
                         if mode == "datahub":
                             rows.append({
                                 "UUID": uuid,
@@ -102,7 +101,6 @@ def process_file(df, mode="datahub"):
                                 "Message": msg
                             })
 
-                        # -------- TCAP --------
                         elif mode == "tcap":
                             rows.append({
                                 "UUID": uuid,
@@ -149,7 +147,7 @@ if datahub_file or tcap_file:
     col3.metric("Total VIN", len(rows1) + len(rows2))
 
 # =========================
-# DISPLAY (Preview ทั้ง 2 Sheet)
+# DISPLAY
 # =========================
 if rows1 or rows2:
 
@@ -177,7 +175,7 @@ if rows1 or rows2:
         st.warning("⚠️ TCAPLinkage ไม่มีข้อมูล")
 
     # =========================
-    # EXPORT (2 SHEETS)
+    # EXPORT
     # =========================
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
