@@ -151,5 +151,5 @@ if datahub_file and tcap_file:
     st.download_button(
         "Download Summary",
         data=output,
-        file_name="tcap-summary.xlsx"
+        file_name="b2c-summary.xlsx"
     )
