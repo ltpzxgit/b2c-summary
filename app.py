@@ -4,8 +4,8 @@ import re
 import json
 from io import BytesIO
 
-st.set_page_config(page_title="ITOSE - AUTO ALL", layout="wide")
-st.title("ITOSE Tools - Auto Detect (3 Sheets)")
+st.set_page_config(page_title="ITOSE - AUTO SPLIT", layout="wide")
+st.title("ITOSE Tools - Auto Detect (Split by File)")
 
 # =========================
 # REGEX
@@ -14,7 +14,7 @@ UUID_REGEX = r'([a-f0-9\-]{36})'
 JSON_BLOCK_REGEX = r'\{.*?\}'
 
 # =========================
-# CORE PARSER
+# CORE
 # =========================
 def extract_uuid(text):
     m = re.search(UUID_REGEX, text)
@@ -44,68 +44,31 @@ def normalize(data):
 
 
 # =========================
-# AUTO DETECT TYPE
+# EXTRACT (รวมทุก type)
 # =========================
-def classify(obj):
-    keys = obj.keys()
-
-    if "vin" in keys and "deviceId" in keys:
-        return "B2C"
-
-    if "IMEI" in keys or "ICCID" in keys:
-        return "TCAP"
-
-    if "resultCode" in keys or "resourceOrderId" in keys:
-        return "REQ"
-
-    return None
-
-
-# =========================
-# EXTRACTORS
-# =========================
-def extract_b2c(obj, uuid):
+def extract_row(obj, uuid):
     return {
         "UUID": uuid,
         "VIN": obj.get("vin"),
-        "DeviceID": obj.get("deviceId"),
+        "DeviceID": obj.get("deviceId") or obj.get("resourceGroupId"),
         "Carrier": obj.get("carrier"),
         "SimPackage": obj.get("simPackage"),
-        "Result": obj.get("message", "-"),
-        "StatusCode": obj.get("statusCode", "-")
-    }
-
-
-def extract_tcap(obj, uuid):
-    return {
-        "UUID": uuid,
-        "DeviceID": obj.get("deviceId"),
         "IMEI": obj.get("IMEI"),
         "ICCID": obj.get("ICCID"),
         "IMSI": obj.get("IMSI"),
         "ProdStatus": obj.get("prodStatus"),
         "SendDate": obj.get("sendDate"),
-        "TypeStatus": obj.get("typeStatus")
-    }
-
-
-def extract_req(obj, uuid):
-    return {
-        "UUID": uuid,
-        "DeviceID": obj.get("resourceGroupId"),
-        "ResourceOrderId": obj.get("resourceOrderId"),
-        "ResultCode": obj.get("resultCode"),
-        "ResultDesc": obj.get("resultDesc")
+        "TypeStatus": obj.get("typeStatus"),
+        "Result": obj.get("message") or obj.get("resultDesc"),
+        "StatusCode": obj.get("statusCode") or obj.get("resultCode")
     }
 
 
 # =========================
-# PARSE FILE GENERIC
+# PARSE FILE (แยกอิสระ)
 # =========================
 def parse_file(df):
-    b2c_rows = []
-    tcap_rows = []
-    req_rows = []
+    rows = []
 
     for col in df.columns:
         for val in df[col]:
@@ -128,20 +91,22 @@ def parse_file(df):
                     if not isinstance(obj, dict):
                         continue
 
-                    t = classify(obj)
+                    row = extract_row(obj, uuid)
 
-                    if t == "B2C":
-                        row = extract_b2c(obj, uuid)
-                        if row["VIN"] or row["DeviceID"]:
-                            b2c_rows.append(row)
+                    # กัน row ขยะ
+                    if not row["VIN"] and not row["DeviceID"]:
+                        continue
 
-                    elif t == "TCAP":
-                        tcap_rows.append(extract_tcap(obj, uuid))
+                    rows.append(row)
 
-                    elif t == "REQ":
-                        req_rows.append(extract_req(obj, uuid))
+    df_out = pd.DataFrame(rows)
 
-    return b2c_rows, tcap_rows, req_rows
+    if not df_out.empty:
+        df_out = df_out.drop_duplicates()
+        df_out.reset_index(drop=True, inplace=True)
+        df_out.insert(0, "No.", df_out.index + 1)
+
+    return df_out
 
 
 # =========================
@@ -150,13 +115,13 @@ def parse_file(df):
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    file1 = st.file_uploader("File 1", type=["xlsx", "csv"])
+    file1 = st.file_uploader("File 1 (B2CDataHub)", type=["xlsx", "csv"])
 
 with col2:
-    file2 = st.file_uploader("File 2", type=["xlsx", "csv"])
+    file2 = st.file_uploader("File 2 (B2CTCAP)", type=["xlsx", "csv"])
 
 with col3:
-    file3 = st.file_uploader("File 3", type=["xlsx", "csv"])
+    file3 = st.file_uploader("File 3 (VehicleSettingRequester)", type=["xlsx", "csv"])
 
 
 # =========================
@@ -164,40 +129,25 @@ with col3:
 # =========================
 if file1 and file2 and file3:
 
-    dfs = []
-    for f in [file1, file2, file3]:
-        df = pd.read_csv(f) if f.name.endswith(".csv") else pd.read_excel(f)
-        dfs.append(df)
+    df1 = pd.read_csv(file1) if file1.name.endswith(".csv") else pd.read_excel(file1)
+    df2 = pd.read_csv(file2) if file2.name.endswith(".csv") else pd.read_excel(file2)
+    df3 = pd.read_csv(file3) if file3.name.endswith(".csv") else pd.read_excel(file3)
 
-    all_b2c, all_tcap, all_req = [], [], []
-
-    for df in dfs:
-        b2c, tcap, req = parse_file(df)
-        all_b2c.extend(b2c)
-        all_tcap.extend(tcap)
-        all_req.extend(req)
-
-    df_b2c = pd.DataFrame(all_b2c).drop_duplicates()
-    df_tcap = pd.DataFrame(all_tcap).drop_duplicates()
-    df_req = pd.DataFrame(all_req).drop_duplicates()
-
-    # numbering
-    for df in [df_b2c, df_tcap, df_req]:
-        if not df.empty:
-            df.reset_index(drop=True, inplace=True)
-            df.insert(0, "No.", df.index + 1)
+    out1 = parse_file(df1)
+    out2 = parse_file(df2)
+    out3 = parse_file(df3)
 
     # =========================
     # SHOW
     # =========================
     st.subheader("B2CDataHubLinkage")
-    st.dataframe(df_b2c)
+    st.dataframe(out1)
 
     st.subheader("B2CTCAPLinkage")
-    st.dataframe(df_tcap)
+    st.dataframe(out2)
 
     st.subheader("VehicleSettingRequester")
-    st.dataframe(df_req)
+    st.dataframe(out3)
 
     # =========================
     # EXPORT
@@ -205,14 +155,14 @@ if file1 and file2 and file3:
     output = BytesIO()
 
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df_b2c.to_excel(writer, index=False, sheet_name='B2CDataHubLinkage')
-        df_tcap.to_excel(writer, index=False, sheet_name='B2CTCAPLinkage')
-        df_req.to_excel(writer, index=False, sheet_name='VehicleSettingRequester')
+        out1.to_excel(writer, index=False, sheet_name='B2CDataHubLinkage')
+        out2.to_excel(writer, index=False, sheet_name='B2CTCAPLinkage')
+        out3.to_excel(writer, index=False, sheet_name='VehicleSettingRequester')
 
     output.seek(0)
 
     st.download_button(
-        "Download Excel (Auto Detect)",
+        "Download Excel (Split Sheets)",
         data=output,
-        file_name="AUTO_ALL.xlsx"
+        file_name="AUTO_SPLIT.xlsx"
     )
