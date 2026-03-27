@@ -17,36 +17,65 @@ UUID_REGEX = r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} ([a-f0-9\-]{36})'
 # =========================
 def extract_uuid(text):
     m = re.search(UUID_REGEX, text)
-    return m.group(1) if m else None
+    return m.group(1) if m else "-"
 
-def extract_json(text):
+
+def safe_json_load(text):
+    """
+    โหลด JSON แบบทน:
+    - ตัดจาก { ตัวแรก
+    - แก้ escaped json
+    """
     try:
         json_part = text[text.index("{"):]
+
+        # กรณี escape "\""
+        json_part = json_part.replace('\\"', '"')
+
         return json.loads(json_part)
     except:
         return None
 
+
 def parse_b2c_block(text):
-    data = extract_json(text)
+    data = safe_json_load(text)
     if not data:
         return []
 
     results = []
 
     try:
-        vehicles = data.get("data", [])
-        message = data.get("message")
-        status_code = data.get("statusCode")
+        # 🔥 รองรับทุกเคส
+        if isinstance(data, list):
+            vehicles = data
+            message = "-"
+            status_code = "-"
+        elif "data" in data:
+            vehicles = data.get("data", [])
+            message = data.get("message", "-")
+            status_code = data.get("statusCode", "-")
+        else:
+            vehicles = [data]
+            message = data.get("message", "-")
+            status_code = data.get("statusCode", "-")
 
         for v in vehicles:
+            vin = v.get("vin")
+            device = v.get("deviceId")
+
+            # กันเคสไม่มีค่า
+            if not vin and not device:
+                continue
+
             results.append({
-                "VIN": v.get("vin"),
-                "DeviceID": v.get("deviceId"),
+                "VIN": vin,
+                "DeviceID": device,
                 "Carrier": v.get("carrier"),
                 "SimPackage": v.get("simPackage"),
                 "Result": message,
                 "StatusCode": status_code
             })
+
     except:
         pass
 
@@ -68,6 +97,9 @@ with col3:
     req_file = st.file_uploader("VehicleSettingRequester", type=["xlsx", "csv"])
 
 
+# =========================
+# MAIN
+# =========================
 if b2c_file and tcap_file and req_file:
 
     df_b2c_raw = pd.read_csv(b2c_file) if b2c_file.name.endswith(".csv") else pd.read_excel(b2c_file)
@@ -75,7 +107,7 @@ if b2c_file and tcap_file and req_file:
     df_req = pd.read_csv(req_file) if req_file.name.endswith(".csv") else pd.read_excel(req_file)
 
     # =========================
-    # B2CDataHub PARSE
+    # B2C PARSE
     # =========================
     rows = []
 
@@ -90,6 +122,9 @@ if b2c_file and tcap_file and req_file:
 
             parsed = parse_b2c_block(text)
 
+            if not parsed:
+                continue  # skip เงียบๆ
+
             for item in parsed:
                 item["UUID"] = uuid
                 rows.append(item)
@@ -102,10 +137,19 @@ if b2c_file and tcap_file and req_file:
         df_b2c.insert(0, "No.", df_b2c.index + 1)
 
     # =========================
-    # SHOW TABLE
+    # HIGHLIGHT ERROR
+    # =========================
+    def highlight_error(row):
+        return ['background-color: #ffcccc' if str(row["StatusCode"]) != "200" else '' for _ in row]
+
+    # =========================
+    # SHOW
     # =========================
     st.subheader("B2CDataHubLinkage")
-    st.dataframe(df_b2c)
+    if not df_b2c.empty:
+        st.dataframe(df_b2c.style.apply(highlight_error, axis=1))
+    else:
+        st.warning("No data parsed from B2CDataHub")
 
     st.subheader("B2CTCAPLinkage")
     st.dataframe(df_tcap)
