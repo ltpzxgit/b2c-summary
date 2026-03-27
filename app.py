@@ -4,8 +4,8 @@ import re
 import json
 from io import BytesIO
 
-st.set_page_config(page_title="ITOSE - VIN Based", layout="wide")
-st.title("TCAPLinkageDatahub → VIN Based Clean")
+st.set_page_config(page_title="ITOSE - VIN Clean", layout="wide")
+st.title("TCAPLinkageDatahub → VIN Clean (Based on V5 Logic)")
 
 # =========================
 # FUNCTIONS
@@ -41,19 +41,22 @@ if file:
     df = pd.read_csv(file) if file.name.endswith(".csv") else pd.read_excel(file)
 
     # =========================
-    # 🔥 รวม log ทั้งไฟล์ก่อน
+    # รวม log ทั้งหมด (เหมือน v5)
     # =========================
     full_text = "\n".join(
         str(val) for col in df.columns for val in df[col] if pd.notna(val)
     )
 
     # =========================
-    # แยก block ตาม UUID
+    # split เป็น block ตาม UUID
     # =========================
     blocks = re.split(r'(?=\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})', full_text)
 
     vin_map = {}
 
+    # =========================
+    # PARSE BLOCK
+    # =========================
     for block in blocks:
 
         uuid = get_uuid(block)
@@ -96,6 +99,9 @@ if file:
                 "_dt": dt
             }
 
+            # =========================
+            # VIN PRIMARY (เอาล่าสุด)
+            # =========================
             if vin not in vin_map or dt > vin_map[vin]["_dt"]:
                 vin_map[vin] = record
 
@@ -103,11 +109,14 @@ if file:
     # CHECK
     # =========================
     if not vin_map:
-        st.error("❌ ยังไม่ได้ → log JSON กระจายหลายบรรทัดหนักมาก")
+        st.error("❌ No VIN extracted → log ยัง parse ไม่ได้")
         st.stop()
 
     df_clean = pd.DataFrame(vin_map.values())
 
+    # =========================
+    # SORT + FORMAT
+    # =========================
     df_clean = df_clean.sort_values("_dt", ascending=False)
 
     df_clean = df_clean[[
@@ -122,9 +131,15 @@ if file:
     df_clean = df_clean.reset_index(drop=True)
     df_clean.insert(0, "No.", df_clean.index + 1)
 
+    # =========================
+    # RESULT
+    # =========================
     st.success(f"✅ Total VIN: {len(df_clean)}")
     st.dataframe(df_clean, use_container_width=True)
 
+    # =========================
+    # EXPORT
+    # =========================
     output = BytesIO()
     df_clean.to_excel(output, index=False)
     output.seek(0)
@@ -132,5 +147,5 @@ if file:
     st.download_button(
         "Download Clean Data",
         data=output,
-        file_name="vin_based_datahub.xlsx"
+        file_name="vin_clean.xlsx"
     )
