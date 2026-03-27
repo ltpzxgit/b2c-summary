@@ -195,7 +195,7 @@ if file1:
     # =========================
     # TABLE
     # =========================
-    st.markdown("TCAPLinkageDatahub")
+    st.markdown("### TCAPLinkageDatahub")
     st.dataframe(df_vin1, use_container_width=True)
 
     if not df_vin2.empty:
