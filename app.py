@@ -7,63 +7,49 @@ from io import BytesIO
 st.set_page_config(page_title="ITOSE - B2C", layout="wide")
 
 # =========================
-# TITLE (ขยับลง)
+# TITLE (spacing พอดี)
 # =========================
 st.markdown("""
-<h1 style='margin-top: 30px; margin-bottom: 10px;'>
+<h1 style='margin-top: 10px; margin-bottom: 10px;'>
 ITOSE Tools - B2C Summary
 </h1>
 """, unsafe_allow_html=True)
 
 # =========================
-# UI STYLE (DTEN Style + Compact)
+# UI STYLE (SAFE - ไม่พัง layout)
 # =========================
 st.markdown("""
 <style>
 .block-container {
-    padding-top: 1rem;
+    padding-top: 0.5rem;
     padding-bottom: 1.5rem;
 }
 
-/* === Upload แนวตั้งแบบ DTEN === */
-[data-testid="stFileUploader"] section div {
-    flex-direction: column !important;
-    align-items: flex-start !important;
-}
-
-/* === ลดความสูง === */
+/* Upload Card */
 [data-testid="stFileUploader"] section {
-    padding: 12px !important;
+    padding: 12px 16px !important;
     border-radius: 12px !important;
-    min-height: unset !important;
 }
 
-/* Text */
+/* text */
 [data-testid="stFileUploader"] p {
-    font-size: 13px !important;
-    margin: 0 !important;
+    font-size: 14px !important;
 }
 
-/* Button */
+/* button */
 [data-testid="stFileUploader"] button {
-    margin-top: 6px !important;
-    padding: 6px 12px !important;
+    padding: 6px 14px !important;
     font-size: 13px !important;
 }
 
 /* spacing */
 [data-testid="stFileUploader"] {
-    margin-bottom: 8px !important;
-}
-
-/* filename */
-[data-testid="stFileUploader"] small {
-    font-size: 12px !important;
+    margin-bottom: 12px !important;
 }
 
 /* label */
 label {
-    margin-bottom: 4px !important;
+    margin-bottom: 6px !important;
 }
 
 /* Summary Card */
