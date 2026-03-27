@@ -3,17 +3,19 @@ import pandas as pd
 import re
 from io import BytesIO
 
-st.set_page_config(page_title="ITOSE - VIN Debug", layout="wide")
-st.title("ITOSE Tools - VIN Debug (Datahub Only)")
+st.set_page_config(page_title="ITOSE - VIN UUID", layout="wide")
+st.title("ITOSE Tools - VIN + UUID (Datahub Only)")
 
 # =========================
-# REGEX (VIN SMART)
+# REGEX
 # =========================
 VIN_REGEX_LIST = [
     r'"vin"\s*:\s*"([^"]+)"',
     r'VIN[:=]\s*([A-Za-z0-9]+)',
     r'\b([A-HJ-NPR-Z0-9]{17})\b'
 ]
+
+UUID_REGEX = r'([a-f0-9\-]{36})'
 
 # =========================
 # FUNCTIONS
@@ -27,7 +29,7 @@ def extract_vins(text):
     return vins
 
 # =========================
-# UPLOAD (เหมือนของเดิม)
+# UPLOAD
 # =========================
 datahub_file = st.file_uploader("TCAPLinkageDatahub", type=["xlsx", "csv"])
 
@@ -38,18 +40,30 @@ if datahub_file:
 
     df = pd.read_csv(datahub_file) if datahub_file.name.endswith(".csv") else pd.read_excel(datahub_file)
 
-    vin_set = set()
+    vin_map = {}
 
     for col in df.columns:
         for val in df[col]:
             if pd.isna(val):
                 continue
 
-            vins = extract_vins(str(val))
-            for v in vins:
-                vin_set.add(v)
+            text = str(val)
 
-    vin_list = sorted(vin_set)
+            vins = extract_vins(text)
+            if not vins:
+                continue
+
+            uuid_match = re.search(UUID_REGEX, text)
+            uuid = uuid_match.group(1) if uuid_match else ""
+
+            for vin in vins:
+                # overwrite → เอาค่าล่าสุดของ VIN
+                vin_map[vin] = {
+                    "VIN": vin,
+                    "UUID": uuid
+                }
+
+    vin_list = list(vin_map.values())
 
     # =========================
     # SUMMARY
@@ -62,26 +76,31 @@ if datahub_file:
     # =========================
     if vin_list:
 
-        df_vin = pd.DataFrame(vin_list, columns=["VIN"])
+        df_vin = pd.DataFrame(vin_list)
+        df_vin = df_vin.reset_index(drop=True)
         df_vin.insert(0, "No.", df_vin.index + 1)
 
-        st.subheader("VIN List")
+        st.subheader("VIN + UUID")
         st.dataframe(df_vin, use_container_width=True)
+
+        # preview
+        st.write("Sample (20 แถวแรก):")
+        st.dataframe(df_vin.head(20), use_container_width=True)
 
         # =========================
         # EXPORT
         # =========================
         output = BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df_vin.to_excel(writer, index=False, sheet_name='VIN_List')
+            df_vin.to_excel(writer, index=False, sheet_name='VIN_UUID')
 
         output.seek(0)
 
         st.download_button(
-            "Download VIN List",
+            "Download VIN + UUID",
             data=output,
-            file_name="vin-list.xlsx"
+            file_name="vin-uuid.xlsx"
         )
 
     else:
-        st.error("❌ ไม่เจอ VIN → format log อาจไม่ตรง")
+        st.error("❌ ไม่เจอ VIN → regex อาจไม่ match format log")
