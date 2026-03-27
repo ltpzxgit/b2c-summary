@@ -7,16 +7,12 @@ st.set_page_config(page_title="ITOSE - Datahub Clean", layout="wide")
 st.title("TCAPLinkageDatahub → Clean Columns")
 
 # =========================
-# REGEX (รองรับของจริง)
-# =========================
-UUID_REGEX = r'([a-f0-9\-]{36})'
-PAIR_REGEX = r'LDCMID":"([^"]+)".*?StatusReg":"([^"]+)".*?ResDate":"([^"]+)"'
-VIN_REGEX = r'"[Vv][Ii][Nn]":"([^"]+)"'
-SIM_REGEX = r'"simPackage":"([^"]+)"'
-
-# =========================
 # FUNCTIONS
 # =========================
+def get_value(pattern, text):
+    m = re.search(pattern, text)
+    return m.group(1) if m else None
+
 def get_carrier(deviceid):
     if isinstance(deviceid, str) and deviceid.startswith(("A", "Z")):
         return "AIS"
@@ -29,25 +25,32 @@ def clean_result(text):
         return "Operation Success"
     return text.strip()
 
-def extract_all(text):
-    uuid = re.search(UUID_REGEX, text)
-    vin_match = re.search(VIN_REGEX, text)
-    sim = re.search(SIM_REGEX, text)
-
-    vin = vin_match.group(1) if vin_match else None
-    sim_val = sim.group(1) if sim else "Unknown"
-
-    pairs = re.findall(PAIR_REGEX, text)
-
+def extract_rows(text):
     results = []
-    for d, s, dt in pairs:
+
+    # 👉 ดึงค่าแบบแยก (ไม่พัง)
+    uuid = get_value(r'[a-f0-9\-]{36}', text)
+    vin = get_value(r'"[Vv][Ii][Nn]":"([^"]+)"', text)
+    sim = get_value(r'"simPackage":"([^"]+)"', text) or "Unknown"
+
+    # 👉 หา DeviceID ทั้งหมด
+    device_ids = re.findall(r'LDCMID":"([^"]+)"', text)
+
+    # 👉 หา Result ทั้งหมด
+    results_list = re.findall(r'StatusReg":"([^"]+)"', text)
+
+    # 👉 หา Date ทั้งหมด
+    dates = re.findall(r'ResDate":"([^"]+)"', text)
+
+    # 👉 จับคู่ตาม index
+    for i in range(min(len(device_ids), len(results_list), len(dates))):
         results.append({
-            "UUID": uuid.group(1) if uuid else None,
+            "UUID": uuid,
             "VIN": vin,
-            "DeviceID": d,
-            "Result": clean_result(s),
-            "Date": dt,
-            "SimPackage": sim_val
+            "DeviceID": device_ids[i],
+            "Result": clean_result(results_list[i]),
+            "Date": dates[i],
+            "SimPackage": sim
         })
 
     return results
@@ -64,7 +67,7 @@ if file:
     rows = []
 
     # =========================
-    # PARSE LOG
+    # PARSE
     # =========================
     for col in df.columns:
         for val in df[col]:
@@ -72,39 +75,37 @@ if file:
                 continue
 
             text = str(val)
-            extracted = extract_all(text)
 
+            extracted = extract_rows(text)
             for r in extracted:
                 r["Carrier"] = get_carrier(r["DeviceID"])
                 rows.append(r)
 
     # =========================
-    # EMPTY CHECK
+    # CHECK
     # =========================
     if not rows:
-        st.error("❌ No data extracted → regex ไม่ match log")
+        st.error("❌ ยัง extract ไม่ได้ → log format แปลกกว่าที่คิด")
+        
+        # 👉 debug โชว์ sample จริง
+        st.write("🔍 Sample log:")
+        st.code(str(df.iloc[0,0])[:500])
+        
         st.stop()
 
     df_clean = pd.DataFrame(rows)
 
     # =========================
-    # SAFE DATE
+    # DATE
     # =========================
     df_clean["Date"] = pd.to_datetime(df_clean["Date"], errors="coerce")
 
     # =========================
-    # DROP VIN NULL
+    # CLEAN
     # =========================
     df_clean = df_clean.dropna(subset=["VIN"])
-
-    # =========================
-    # VIN ซ้ำ → เอาล่าสุด
-    # =========================
     df_clean = df_clean.sort_values("Date").drop_duplicates(subset=["VIN"], keep="last")
 
-    # =========================
-    # SELECT COLUMNS
-    # =========================
     df_clean = df_clean[[
         "UUID",
         "VIN",
