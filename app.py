@@ -1,44 +1,11 @@
 import streamlit as st
 import pandas as pd
 import re
+import json
 from io import BytesIO
 
-st.set_page_config(page_title="ITOSE - VIN DEVICE", layout="wide")
-st.title("ITOSE Tools - VIN + DeviceID")
-
-# =========================
-# REGEX
-# =========================
-VIN_REGEX_LIST = [
-    r'"vin"\s*:\s*"([^"]+)"',
-    r'VIN[:=]\s*([A-Za-z0-9]+)',
-    r'\b([A-HJ-NPR-Z0-9]{17})\b'
-]
-
-DEVICE_REGEX_LIST = [
-    r'"LDCMID"\s*:\s*"([^"]+)"',
-    r'"deviceId"\s*:\s*"([^"]+)"',
-    r'"deviceID"\s*:\s*"([^"]+)"',
-    r'"ldcMid"\s*:\s*"([^"]+)"'
-]
-
-# =========================
-# FUNCTIONS
-# =========================
-def extract_vins(text):
-    vins = set()
-    for pattern in VIN_REGEX_LIST:
-        matches = re.findall(pattern, text)
-        for m in matches:
-            vins.add(m.strip())
-    return vins
-
-def extract_device(text):
-    for pattern in DEVICE_REGEX_LIST:
-        match = re.search(pattern, text)
-        if match:
-            return match.group(1)
-    return ""
+st.set_page_config(page_title="ITOSE - VIN JSON", layout="wide")
+st.title("ITOSE Tools - VIN + DeviceID (JSON Mode)")
 
 # =========================
 # UPLOAD
@@ -46,7 +13,7 @@ def extract_device(text):
 datahub_file = st.file_uploader("TCAPLinkageDatahub", type=["xlsx", "csv"])
 
 # =========================
-# PROCESS (DEVICE BLOCK)
+# PROCESS (JSON BLOCK)
 # =========================
 if datahub_file:
 
@@ -54,31 +21,46 @@ if datahub_file:
 
     vin_map = {}
 
-    current_device = ""
+    # 🔥 ดึง JSON block ทั้งหมด
+    json_blocks = []
 
     for col in df.columns:
         for val in df[col]:
-
             if pd.isna(val):
                 continue
 
             text = str(val)
 
-            # 🔥 เจอ Device = เริ่ม block ใหม่
-            device = extract_device(text)
-            if device:
-                current_device = device
+            # หา JSON ใน string
+            matches = re.findall(r'\{.*?\}', text)
+            for m in matches:
+                json_blocks.append(m)
 
-            # หา VIN
-            vins = extract_vins(text)
-            if not vins:
-                continue
+    # =========================
+    # PARSE JSON
+    # =========================
+    for block in json_blocks:
 
-            for vin in vins:
-                vin_map[vin] = {
-                    "VIN": vin,
-                    "DeviceID": current_device
-                }
+        try:
+            data = json.loads(block)
+
+            # 🔥 บางเคส data อยู่ใน list
+            if isinstance(data, dict):
+
+                # VIN
+                vin = data.get("vin", "")
+
+                # DeviceID
+                device = data.get("deviceId", "")
+
+                if vin:
+                    vin_map[vin] = {
+                        "VIN": vin,
+                        "DeviceID": device
+                    }
+
+        except:
+            continue  # ข้าม block ที่ parse ไม่ได้
 
     vin_list = list(vin_map.values())
 
@@ -111,7 +93,7 @@ if datahub_file:
         st.download_button(
             "Download",
             data=output,
-            file_name="vin-device.xlsx"
+            file_name="vin-json.xlsx"
         )
 
     else:
