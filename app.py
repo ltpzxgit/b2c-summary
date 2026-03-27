@@ -74,7 +74,7 @@ def process_file(df, mode="datahub"):
                 response, status, msg = extract_tail(text)
                 uuid = extract_uuid(text)
 
-                # 🔥 TCAP: ถ้า response ว่าง → ไม่เอา
+                # 🔥 TCAP: filter response ว่าง
                 if mode == "tcap" and response == "":
                     continue
 
@@ -89,9 +89,7 @@ def process_file(df, mode="datahub"):
                         carrier = item.get("carrier", "")
                         sim = map_sim(item.get("simPackage", ""))
 
-                        # ------------------------
-                        # DATAHUB (FULL)
-                        # ------------------------
+                        # -------- Datahub --------
                         if mode == "datahub":
                             rows.append({
                                 "UUID": uuid,
@@ -104,9 +102,7 @@ def process_file(df, mode="datahub"):
                                 "Message": msg
                             })
 
-                        # ------------------------
-                        # TCAP (CUT)
-                        # ------------------------
+                        # -------- TCAP --------
                         elif mode == "tcap":
                             rows.append({
                                 "UUID": uuid,
@@ -153,31 +149,35 @@ if datahub_file or tcap_file:
     col3.metric("Total VIN", len(rows1) + len(rows2))
 
 # =========================
-# DISPLAY
+# DISPLAY (Preview ทั้ง 2 Sheet)
 # =========================
 if rows1 or rows2:
 
     df1_display = pd.DataFrame(rows1).fillna("")
     df2_display = pd.DataFrame(rows2).fillna("")
 
-    # -------- Datahub --------
+    # -------- Sheet 1 --------
     if not df1_display.empty:
         df1_display = df1_display.reset_index(drop=True)
         df1_display.insert(0, "No.", df1_display.index + 1)
 
-        st.markdown("### TCAPLinkageDatahub")
+        st.markdown(f"### TCAPLinkageDatahub ({len(df1_display)} VIN)")
         st.dataframe(df1_display, use_container_width=True)
+    else:
+        st.warning("⚠️ TCAPLinkageDatahub ไม่มีข้อมูล")
 
-    # -------- TCAP --------
+    # -------- Sheet 2 --------
     if not df2_display.empty:
         df2_display = df2_display.reset_index(drop=True)
         df2_display.insert(0, "No.", df2_display.index + 1)
 
-        st.markdown("### TCAPLinkage")
+        st.markdown(f"### TCAPLinkage ({len(df2_display)} VIN)")
         st.dataframe(df2_display, use_container_width=True)
+    else:
+        st.warning("⚠️ TCAPLinkage ไม่มีข้อมูล")
 
     # =========================
-    # EXPORT
+    # EXPORT (2 SHEETS)
     # =========================
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -191,7 +191,7 @@ if rows1 or rows2:
     output.seek(0)
 
     st.download_button(
-        "Download Excel (2 Sheets)",
+        "📥 Download Excel (2 Sheets)",
         data=output,
         file_name="vin-separated-sheets.xlsx"
     )
