@@ -11,7 +11,6 @@ st.title("ITOSE Tools - VIN FINAL + UUID")
 # FUNCTIONS
 # =========================
 
-# 🔥 ดึง JSON ARRAY (ข้อมูล VIN)
 def extract_json_array(text):
     matches = re.findall(r'\[.*?\]', text)
     for m in matches:
@@ -24,7 +23,6 @@ def extract_json_array(text):
     return None
 
 
-# 🔥 ดึง JSON OBJECT (status / message)
 def extract_tail(text):
     response = ""
     status = ""
@@ -68,7 +66,7 @@ def map_sim(sim):
 
 
 # =========================
-# PROCESS FUNCTION
+# PROCESS FUNCTION (🔥 FIXED)
 # =========================
 def process_file(df, mode="datahub"):
     rows = []
@@ -88,11 +86,15 @@ def process_file(df, mode="datahub"):
             response, status, msg = extract_tail(text)
             uuid = extract_uuid(text)
 
-            # 🔥 TCAP filter (มี response เท่านั้น)
+            # 🔥 TCAP filter
             if mode == "tcap" and response == "":
                 continue
 
             for item in data:
+
+                # 🔥 FIX: กัน item เป็น string / garbage
+                if not isinstance(item, dict):
+                    continue
 
                 vin = item.get("vin", "")
                 if not vin:
@@ -132,6 +134,7 @@ def process_file(df, mode="datahub"):
 datahub_file = st.file_uploader("TCAPLinkageDatahub", type=["xlsx", "csv"])
 tcap_file = st.file_uploader("TCAPLinkage", type=["xlsx", "csv"])
 
+
 # =========================
 # RUN
 # =========================
@@ -146,6 +149,7 @@ if tcap_file:
     df2 = pd.read_csv(tcap_file) if tcap_file.name.endswith(".csv") else pd.read_excel(tcap_file)
     rows2 = process_file(df2, mode="tcap")
 
+
 # =========================
 # SUMMARY
 # =========================
@@ -156,6 +160,7 @@ if datahub_file or tcap_file:
     col1.metric("Datahub VIN", len(rows1))
     col2.metric("TCAP VIN", len(rows2))
     col3.metric("Total VIN", len(rows1) + len(rows2))
+
 
 # =========================
 # DISPLAY
