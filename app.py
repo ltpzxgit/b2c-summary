@@ -5,54 +5,62 @@ import json
 from io import BytesIO
 
 st.set_page_config(page_title="ITOSE - B2C", layout="wide")
+st.title("ITOSE Tools - B2C Summary")
 
 # =========================
-# TITLE (spacing พอดี)
-# =========================
-st.markdown("""
-<h1 style='margin-top: 10px; margin-bottom: 10px;'>
-ITOSE Tools - B2C Summary
-</h1>
-""", unsafe_allow_html=True)
-
-# =========================
-# UI STYLE (SAFE - ไม่พัง layout)
+# UI STYLE (DTEN Style จริง)
 # =========================
 st.markdown("""
 <style>
 .block-container {
-    padding-top: 0.5rem;
+    padding-top: 1.2rem;
     padding-bottom: 1.5rem;
 }
 
-/* Upload Card */
+/* === Upload Layout ให้เป็นแนวตั้ง === */
+[data-testid="stFileUploader"] section div {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+}
+
+/* === ลดความสูง card === */
 [data-testid="stFileUploader"] section {
-    padding: 12px 16px !important;
+    padding: 12px !important;
     border-radius: 12px !important;
+    min-height: unset !important;
 }
 
-/* text */
+/* === Text === */
 [data-testid="stFileUploader"] p {
-    font-size: 14px !important;
+    font-size: 13px !important;
+    margin: 0 !important;
 }
 
-/* button */
+/* === Button === */
 [data-testid="stFileUploader"] button {
-    padding: 6px 14px !important;
+    margin-top: 6px !important;
+    padding: 6px 12px !important;
     font-size: 13px !important;
 }
 
-/* spacing */
+/* === spacing === */
 [data-testid="stFileUploader"] {
-    margin-bottom: 12px !important;
+    margin-bottom: 8px !important;
 }
 
-/* label */
+/* === filename === */
+[data-testid="stFileUploader"] small {
+    font-size: 12px !important;
+}
+
+/* === label spacing === */
 label {
-    margin-bottom: 6px !important;
+    margin-bottom: 4px !important;
 }
 
+/* ========================= */
 /* Summary Card */
+/* ========================= */
 .summary-card {
     background: linear-gradient(135deg, #0f172a, #1e293b);
     padding: 25px;
@@ -173,7 +181,7 @@ def summary_card(title, total, error):
     """, unsafe_allow_html=True)
 
 # =========================
-# UPLOAD
+# UPLOAD (2 ช่อง)
 # =========================
 col1, col2 = st.columns(2)
 
@@ -214,19 +222,26 @@ if file1:
             "StatusCode"
         ]]
 
+    # =========================
     # SUMMARY
+    # =========================
     st.markdown("## Summary")
 
-    cards = [("TCAPLinkageDatahub", len(df_vin1), 0)]
+    cards = []
+    cards.append(("TCAPLinkageDatahub", len(df_vin1), 0))
+
     if not df_vin2.empty:
         cards.append(("TCAPLinkage", len(df_vin2), 0))
 
     cols = st.columns(len(cards))
+
     for i, (title, total, error) in enumerate(cards):
         with cols[i]:
             summary_card(title, total, error)
 
+    # =========================
     # TABLE
+    # =========================
     st.markdown("### TCAPLinkageDatahub")
     st.dataframe(df_vin1, use_container_width=True)
 
@@ -234,18 +249,25 @@ if file1:
         st.markdown("### TCAPLinkage")
         st.dataframe(df_vin2, use_container_width=True)
 
+    # =========================
     # EXPORT
+    # =========================
     output = BytesIO()
 
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
+
         df_vin1.to_excel(writer, index=False, sheet_name='TCAPLinkageDataHub')
 
         if not df_vin2.empty:
             df_vin2.to_excel(writer, index=False, sheet_name='TCAPLinkage')
 
-        summary_data = [
-            {"Source": "TCAPLinkageDatahub", "Total": len(df_vin1), "Error": 0}
-        ]
+        summary_data = []
+
+        summary_data.append({
+            "Source": "TCAPLinkageDatahub",
+            "Total": len(df_vin1),
+            "Error": 0
+        })
 
         if not df_vin2.empty:
             summary_data.append({
@@ -254,7 +276,8 @@ if file1:
                 "Error": 0
             })
 
-        pd.DataFrame(summary_data).to_excel(writer, index=False, sheet_name='Summary')
+        df_summary = pd.DataFrame(summary_data)
+        df_summary.to_excel(writer, index=False, sheet_name='Summary')
 
     output.seek(0)
 
