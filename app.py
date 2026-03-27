@@ -7,10 +7,10 @@ st.set_page_config(page_title="ITOSE - Datahub Clean", layout="wide")
 st.title("TCAPLinkageDatahub → Clean Columns")
 
 # =========================
-# REGEX
+# REGEX (ปรับให้ทนขึ้น)
 # =========================
 UUID_REGEX = r'([a-f0-9\-]{36})'
-PAIR_REGEX = r'"LDCMID":"([^"]+)".*?"StatusReg":"([^"]+)".*?"ResDate":"([^"]+)"'
+PAIR_REGEX = r'LDCMID":"([^"]+)".*?StatusReg":"([^"]+)".*?ResDate":"([^"]+)"'
 VIN_REGEX = r'"vin":"([^"]+)"'
 SIM_REGEX = r'"simPackage":"([^"]+)"'
 
@@ -58,7 +58,8 @@ if file:
     # =========================
     for col in df.columns:
         for val in df[col]:
-            if pd.isna(val): continue
+            if pd.isna(val): 
+                continue
 
             text = str(val)
             extracted = extract_all(text)
@@ -67,17 +68,37 @@ if file:
                 r["Carrier"] = get_carrier(r["DeviceID"])
                 rows.append(r)
 
+    # =========================
+    # HANDLE EMPTY
+    # =========================
+    if not rows:
+        st.error("❌ No data extracted → regex ไม่ match log")
+        st.stop()
+
     df_clean = pd.DataFrame(rows)
 
     # =========================
-    # CLEAN
+    # SAFE DATE
     # =========================
-    df_clean["Date"] = pd.to_datetime(df_clean["Date"], errors="coerce")
+    if "Date" in df_clean.columns:
+        df_clean["Date"] = pd.to_datetime(df_clean["Date"], errors="coerce")
+    else:
+        st.error("❌ No Date column")
+        st.stop()
 
-    # 👉 VIN ซ้ำ เอา latest
+    # =========================
+    # DROP VIN NULL ก่อน
+    # =========================
+    df_clean = df_clean.dropna(subset=["VIN"])
+
+    # =========================
+    # VIN ซ้ำ → เอาล่าสุด
+    # =========================
     df_clean = df_clean.sort_values("Date").drop_duplicates(subset=["VIN"], keep="last")
 
-    # 👉 Result clean
+    # =========================
+    # CLEAN RESULT
+    # =========================
     df_clean["Result"] = df_clean["Result"].astype(str).str.strip()
 
     # =========================
