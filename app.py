@@ -4,7 +4,7 @@ import re
 from io import BytesIO
 
 st.set_page_config(page_title="ITOSE - VIN CONTEXT", layout="wide")
-st.title("ITOSE Tools - VIN + UUID + DeviceID (Stable Mode)")
+st.title("ITOSE Tools - VIN + UUID + DeviceID")
 
 # =========================
 # REGEX
@@ -43,17 +43,16 @@ if datahub_file:
 
     vin_map = {}
 
-    # 🔥 รวมค่าทั้งหมดเป็น list (เรียงตามไฟล์)
+    # รวมค่าทั้งหมดเป็น list
     all_values = []
     for col in df.columns:
         for val in df[col]:
             if pd.notna(val):
                 all_values.append(str(val))
 
-    # 🔥 loop แบบมี context window
+    # loop แบบ context window
     for i in range(len(all_values)):
 
-        # ปรับ window ได้ (ตอนนี้ 3 บรรทัด)
         context = " ".join(all_values[max(0, i-1): i+2])
 
         vins = extract_vins(context)
@@ -67,7 +66,6 @@ if datahub_file:
         device = device_match.group(1) if device_match else ""
 
         for vin in vins:
-            # overwrite → เอาค่าล่าสุด
             vin_map[vin] = {
                 "VIN": vin,
                 "UUID": uuid,
@@ -91,12 +89,7 @@ if datahub_file:
         df_vin = df_vin.reset_index(drop=True)
         df_vin.insert(0, "No.", df_vin.index + 1)
 
-        st.subheader("VIN + UUID + DeviceID")
         st.dataframe(df_vin, use_container_width=True)
-
-        # preview
-        st.write("Sample (20 แถวแรก):")
-        st.dataframe(df_vin.head(20), use_container_width=True)
 
         # =========================
         # EXPORT
