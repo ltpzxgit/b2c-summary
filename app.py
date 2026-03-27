@@ -4,8 +4,8 @@ import re
 import json
 from io import BytesIO
 
-st.set_page_config(page_title="ITOSE - B2C AUTO", layout="wide")
-st.title("ITOSE Tools - B2C (Auto Detect Mode)")
+st.set_page_config(page_title="ITOSE - AUTO ALL", layout="wide")
+st.title("ITOSE Tools - Auto Detect (3 Sheets)")
 
 # =========================
 # REGEX
@@ -14,21 +14,18 @@ UUID_REGEX = r'([a-f0-9\-]{36})'
 JSON_BLOCK_REGEX = r'\{.*?\}'
 
 # =========================
-# FUNCTIONS
+# CORE PARSER
 # =========================
 def extract_uuid(text):
     m = re.search(UUID_REGEX, text)
     return m.group(1) if m else "-"
 
 
-def extract_json_blocks(text):
-    """
-    ดึงทุก {...} ใน text
-    """
+def extract_blocks(text):
     return re.findall(JSON_BLOCK_REGEX, text)
 
 
-def try_parse_json(block):
+def parse_json(block):
     try:
         block = block.replace('\\"', '"')
         return json.loads(block)
@@ -36,58 +33,115 @@ def try_parse_json(block):
         return None
 
 
-def normalize_to_list(data):
-    """
-    auto detect structure
-    """
+def normalize(data):
     if isinstance(data, list):
-        return data, "-", "-"
-
+        return data
     if isinstance(data, dict):
         if "data" in data and isinstance(data["data"], list):
-            return data["data"], data.get("message", "-"), data.get("statusCode", "-")
-        else:
-            return [data], data.get("message", "-"), data.get("statusCode", "-")
-
-    return [], "-", "-"
+            return data["data"]
+        return [data]
+    return []
 
 
-def extract_fields(obj, message, status_code):
-    vin = obj.get("vin")
-    device = obj.get("deviceId")
+# =========================
+# AUTO DETECT TYPE
+# =========================
+def classify(obj):
+    keys = obj.keys()
 
-    if not vin and not device:
-        return None
+    if "vin" in keys and "deviceId" in keys:
+        return "B2C"
 
+    if "IMEI" in keys or "ICCID" in keys:
+        return "TCAP"
+
+    if "resultCode" in keys or "resourceOrderId" in keys:
+        return "REQ"
+
+    return None
+
+
+# =========================
+# EXTRACTORS
+# =========================
+def extract_b2c(obj, uuid):
     return {
-        "VIN": vin,
-        "DeviceID": device,
+        "UUID": uuid,
+        "VIN": obj.get("vin"),
+        "DeviceID": obj.get("deviceId"),
         "Carrier": obj.get("carrier"),
         "SimPackage": obj.get("simPackage"),
-        "Result": message,
-        "StatusCode": status_code
+        "Result": obj.get("message", "-"),
+        "StatusCode": obj.get("statusCode", "-")
     }
 
 
-def parse_text_auto(text):
-    results = []
+def extract_tcap(obj, uuid):
+    return {
+        "UUID": uuid,
+        "DeviceID": obj.get("deviceId"),
+        "IMEI": obj.get("IMEI"),
+        "ICCID": obj.get("ICCID"),
+        "IMSI": obj.get("IMSI"),
+        "ProdStatus": obj.get("prodStatus"),
+        "SendDate": obj.get("sendDate"),
+        "TypeStatus": obj.get("typeStatus")
+    }
 
-    blocks = extract_json_blocks(text)
 
-    for block in blocks:
-        data = try_parse_json(block)
-        if not data:
-            continue
+def extract_req(obj, uuid):
+    return {
+        "UUID": uuid,
+        "DeviceID": obj.get("resourceGroupId"),
+        "ResourceOrderId": obj.get("resourceOrderId"),
+        "ResultCode": obj.get("resultCode"),
+        "ResultDesc": obj.get("resultDesc")
+    }
 
-        objs, message, status_code = normalize_to_list(data)
 
-        for obj in objs:
-            if isinstance(obj, dict):
-                row = extract_fields(obj, message, status_code)
-                if row:
-                    results.append(row)
+# =========================
+# PARSE FILE GENERIC
+# =========================
+def parse_file(df):
+    b2c_rows = []
+    tcap_rows = []
+    req_rows = []
 
-    return results
+    for col in df.columns:
+        for val in df[col]:
+            if pd.isna(val):
+                continue
+
+            text = str(val)
+            uuid = extract_uuid(text)
+
+            blocks = extract_blocks(text)
+
+            for block in blocks:
+                data = parse_json(block)
+                if not data:
+                    continue
+
+                objs = normalize(data)
+
+                for obj in objs:
+                    if not isinstance(obj, dict):
+                        continue
+
+                    t = classify(obj)
+
+                    if t == "B2C":
+                        row = extract_b2c(obj, uuid)
+                        if row["VIN"] or row["DeviceID"]:
+                            b2c_rows.append(row)
+
+                    elif t == "TCAP":
+                        tcap_rows.append(extract_tcap(obj, uuid))
+
+                    elif t == "REQ":
+                        req_rows.append(extract_req(obj, uuid))
+
+    return b2c_rows, tcap_rows, req_rows
 
 
 # =========================
@@ -96,62 +150,48 @@ def parse_text_auto(text):
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    b2c_file = st.file_uploader("B2CDataHub", type=["xlsx", "csv"])
+    file1 = st.file_uploader("File 1", type=["xlsx", "csv"])
 
 with col2:
-    tcap_file = st.file_uploader("B2CTCAP", type=["xlsx", "csv"])
+    file2 = st.file_uploader("File 2", type=["xlsx", "csv"])
 
 with col3:
-    req_file = st.file_uploader("VehicleSettingRequester", type=["xlsx", "csv"])
+    file3 = st.file_uploader("File 3", type=["xlsx", "csv"])
 
 
 # =========================
 # MAIN
 # =========================
-if b2c_file and tcap_file and req_file:
+if file1 and file2 and file3:
 
-    df_b2c_raw = pd.read_csv(b2c_file) if b2c_file.name.endswith(".csv") else pd.read_excel(b2c_file)
-    df_tcap = pd.read_csv(tcap_file) if tcap_file.name.endswith(".csv") else pd.read_excel(tcap_file)
-    df_req = pd.read_csv(req_file) if req_file.name.endswith(".csv") else pd.read_excel(req_file)
+    dfs = []
+    for f in [file1, file2, file3]:
+        df = pd.read_csv(f) if f.name.endswith(".csv") else pd.read_excel(f)
+        dfs.append(df)
 
-    rows = []
+    all_b2c, all_tcap, all_req = [], [], []
 
-    for col in df_b2c_raw.columns:
-        for val in df_b2c_raw[col]:
-            if pd.isna(val):
-                continue
+    for df in dfs:
+        b2c, tcap, req = parse_file(df)
+        all_b2c.extend(b2c)
+        all_tcap.extend(tcap)
+        all_req.extend(req)
 
-            text = str(val)
+    df_b2c = pd.DataFrame(all_b2c).drop_duplicates()
+    df_tcap = pd.DataFrame(all_tcap).drop_duplicates()
+    df_req = pd.DataFrame(all_req).drop_duplicates()
 
-            uuid = extract_uuid(text)
-            parsed = parse_text_auto(text)
-
-            for item in parsed:
-                item["UUID"] = uuid
-                rows.append(item)
-
-    df_b2c = pd.DataFrame(rows)
-
-    if not df_b2c.empty:
-        df_b2c = df_b2c.drop_duplicates(subset=["VIN", "DeviceID"])
-        df_b2c = df_b2c.reset_index(drop=True)
-        df_b2c.insert(0, "No.", df_b2c.index + 1)
-
-    # =========================
-    # HIGHLIGHT
-    # =========================
-    def highlight_error(row):
-        return ['background-color: #ffcccc' if str(row["StatusCode"]) != "200" else '' for _ in row]
+    # numbering
+    for df in [df_b2c, df_tcap, df_req]:
+        if not df.empty:
+            df.reset_index(drop=True, inplace=True)
+            df.insert(0, "No.", df.index + 1)
 
     # =========================
     # SHOW
     # =========================
     st.subheader("B2CDataHubLinkage")
-
-    if not df_b2c.empty:
-        st.dataframe(df_b2c.style.apply(highlight_error, axis=1))
-    else:
-        st.error("ยัง parse ไม่ได้เลย → แปลว่า JSON ซ้อน/แตก block (ต้องใช้ advanced parser แล้ว)")
+    st.dataframe(df_b2c)
 
     st.subheader("B2CTCAPLinkage")
     st.dataframe(df_tcap)
@@ -172,7 +212,7 @@ if b2c_file and tcap_file and req_file:
     output.seek(0)
 
     st.download_button(
-        "Download Excel (3 Sheets)",
+        "Download Excel (Auto Detect)",
         data=output,
-        file_name="B2C_AUTO.xlsx"
+        file_name="AUTO_ALL.xlsx"
     )
