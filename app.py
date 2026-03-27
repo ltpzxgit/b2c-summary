@@ -3,7 +3,7 @@ import pandas as pd
 import re
 from io import BytesIO
 
-st.set_page_config(page_title="ITOSE - VIN CONTEXT", layout="wide")
+st.set_page_config(page_title="ITOSE - VIN ROW", layout="wide")
 st.title("ITOSE Tools - VIN + UUID + DeviceID")
 
 # =========================
@@ -56,26 +56,19 @@ if datahub_file:
 
     vin_map = {}
 
-    # รวมค่าทั้งหมดเป็น list
-    all_values = []
-    for col in df.columns:
-        for val in df[col]:
-            if pd.notna(val):
-                all_values.append(str(val))
+    # 🔥 ROW-BASED ONLY
+    for _, row in df.iterrows():
 
-    # loop แบบ context window
-    for i in range(len(all_values)):
+        row_text = " ".join([str(v) for v in row if pd.notna(v)])
 
-        context = " ".join(all_values[max(0, i-1): i+2])
-
-        vins = extract_vins(context)
+        vins = extract_vins(row_text)
         if not vins:
             continue
 
-        uuid_match = re.search(UUID_REGEX, context)
-        uuid = uuid_match.group(1) if uuid_match else ""
+        uuid_match = re.search(UUID_REGEX, row_text)
+        device = extract_device(row_text)
 
-        device = extract_device(context)
+        uuid = uuid_match.group(1) if uuid_match else ""
 
         for vin in vins:
 
@@ -106,6 +99,11 @@ if datahub_file:
     if vin_list:
 
         df_vin = pd.DataFrame(vin_list)
+
+        # กัน null
+        df_vin["UUID"] = df_vin["UUID"].fillna("")
+        df_vin["DeviceID"] = df_vin["DeviceID"].fillna("")
+
         df_vin = df_vin.reset_index(drop=True)
         df_vin.insert(0, "No.", df_vin.index + 1)
 
@@ -123,7 +121,7 @@ if datahub_file:
         st.download_button(
             "Download",
             data=output,
-            file_name="vin-context.xlsx"
+            file_name="vin-row-final.xlsx"
         )
 
     else:
