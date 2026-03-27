@@ -229,42 +229,22 @@ if file1:
         st.dataframe(df_vin2, use_container_width=True)
 
     # =========================
-    # EXPORT
-    # =========================
-    output = BytesIO()
+# EXPORT
+# =========================
+output = BytesIO()
 
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+with pd.ExcelWriter(output, engine='openpyxl') as writer:
 
-        df_vin1.to_excel(writer, index=False, sheet_name='VIN_FULL')
+    # 🔥 เปลี่ยนชื่อ sheet 1
+    df_vin1.to_excel(writer, index=False, sheet_name='TCAPLinkageDatahub')
 
-        if not df_vin2.empty:
-            df_vin2.to_excel(writer, index=False, sheet_name='TCAPLinkage')
+    if not df_vin2.empty:
+        df_vin2.to_excel(writer, index=False, sheet_name='TCAPLinkage')
 
-        summary_data = []
+output.seek(0)
 
-        summary_data.append({
-            "Source": "TCAPLinkageDatahub",
-            "Total": len(df_vin1),
-            "Error": 0
-        })
-
-        if not df_vin2.empty:
-            summary_data.append({
-                "Source": "TCAPLinkage",
-                "Total": len(df_vin2),
-                "Error": 0
-            })
-
-        df_summary = pd.DataFrame(summary_data)
-        df_summary.to_excel(writer, index=False, sheet_name='Summary')
-
-    output.seek(0)
-
-    st.download_button(
-        "Download",
-        data=output,
-        file_name="b2c-summary.xlsx"
-    )
-
-else:
-    st.info("Please upload 1st file first")
+st.download_button(
+    "Download",
+    data=output,
+    file_name="b2c-summary.xlsx"
+)
