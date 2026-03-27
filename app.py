@@ -108,6 +108,7 @@ file2 = st.file_uploader("TCAPLinkage (ไฟล์ 2)", type=["xlsx", "csv"])
 # =========================
 if file1:
 
+    # ===== FILE 1 =====
     df1 = pd.read_csv(file1) if file1.name.endswith(".csv") else pd.read_excel(file1)
     rows1 = process_file(df1)
 
@@ -120,9 +121,7 @@ if file1:
 
     st.dataframe(df_vin1, use_container_width=True)
 
-    # =========================
-    # FILE 2 (TCAPLinkage)
-    # =========================
+    # ===== FILE 2 =====
     df_vin2 = pd.DataFrame()
 
     if file2:
@@ -135,6 +134,16 @@ if file1:
         df_vin2 = pd.DataFrame(rows2).fillna("")
         df_vin2 = df_vin2.reset_index(drop=True)
         df_vin2.insert(0, "No.", df_vin2.index + 1)
+
+        # 🔥 ตัด Carrier / SimPackage / Message ออก
+        df_vin2 = df_vin2[[
+            "No.",
+            "UUID",
+            "VIN",
+            "DeviceID",
+            "Response Message",
+            "StatusCode"
+        ]]
 
         st.dataframe(df_vin2, use_container_width=True)
 
