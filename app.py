@@ -7,11 +7,11 @@ st.set_page_config(page_title="ITOSE - Datahub Clean", layout="wide")
 st.title("TCAPLinkageDatahub → Clean Columns")
 
 # =========================
-# REGEX (ปรับให้ทนขึ้น)
+# REGEX (รองรับของจริง)
 # =========================
 UUID_REGEX = r'([a-f0-9\-]{36})'
 PAIR_REGEX = r'LDCMID":"([^"]+)".*?StatusReg":"([^"]+)".*?ResDate":"([^"]+)"'
-VIN_REGEX = r'"vin":"([^"]+)"'
+VIN_REGEX = r'"[Vv][Ii][Nn]":"([^"]+)"'
 SIM_REGEX = r'"simPackage":"([^"]+)"'
 
 # =========================
@@ -22,10 +22,20 @@ def get_carrier(deviceid):
         return "AIS"
     return "TRUE"
 
+def clean_result(text):
+    if not text:
+        return None
+    if "success" in text.lower():
+        return "Operation Success"
+    return text.strip()
+
 def extract_all(text):
     uuid = re.search(UUID_REGEX, text)
-    vin = re.search(VIN_REGEX, text)
+    vin_match = re.search(VIN_REGEX, text)
     sim = re.search(SIM_REGEX, text)
+
+    vin = vin_match.group(1) if vin_match else None
+    sim_val = sim.group(1) if sim else "Unknown"
 
     pairs = re.findall(PAIR_REGEX, text)
 
@@ -33,11 +43,11 @@ def extract_all(text):
     for d, s, dt in pairs:
         results.append({
             "UUID": uuid.group(1) if uuid else None,
-            "VIN": vin.group(1) if vin else None,
+            "VIN": vin,
             "DeviceID": d,
-            "Result": s,
+            "Result": clean_result(s),
             "Date": dt,
-            "SimPackage": sim.group(1) if sim else None
+            "SimPackage": sim_val
         })
 
     return results
@@ -58,7 +68,7 @@ if file:
     # =========================
     for col in df.columns:
         for val in df[col]:
-            if pd.isna(val): 
+            if pd.isna(val):
                 continue
 
             text = str(val)
@@ -69,7 +79,7 @@ if file:
                 rows.append(r)
 
     # =========================
-    # HANDLE EMPTY
+    # EMPTY CHECK
     # =========================
     if not rows:
         st.error("❌ No data extracted → regex ไม่ match log")
@@ -80,14 +90,10 @@ if file:
     # =========================
     # SAFE DATE
     # =========================
-    if "Date" in df_clean.columns:
-        df_clean["Date"] = pd.to_datetime(df_clean["Date"], errors="coerce")
-    else:
-        st.error("❌ No Date column")
-        st.stop()
+    df_clean["Date"] = pd.to_datetime(df_clean["Date"], errors="coerce")
 
     # =========================
-    # DROP VIN NULL ก่อน
+    # DROP VIN NULL
     # =========================
     df_clean = df_clean.dropna(subset=["VIN"])
 
@@ -95,11 +101,6 @@ if file:
     # VIN ซ้ำ → เอาล่าสุด
     # =========================
     df_clean = df_clean.sort_values("Date").drop_duplicates(subset=["VIN"], keep="last")
-
-    # =========================
-    # CLEAN RESULT
-    # =========================
-    df_clean["Result"] = df_clean["Result"].astype(str).str.strip()
 
     # =========================
     # SELECT COLUMNS
@@ -119,7 +120,7 @@ if file:
     # =========================
     # SHOW
     # =========================
-    st.dataframe(df_clean)
+    st.dataframe(df_clean, use_container_width=True)
 
     # =========================
     # EXPORT
