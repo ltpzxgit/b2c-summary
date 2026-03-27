@@ -8,6 +8,80 @@ st.set_page_config(page_title="ITOSE - B2C", layout="wide")
 st.title("ITOSE Tools - B2C Summary")
 
 # =========================
+# UI STYLE (Summary + Upload)
+# =========================
+st.markdown("""
+<style>
+.block-container {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+}
+
+/* ===== Upload Compact ===== */
+[data-testid="stFileUploader"] > div {
+    padding: 8px !important;
+}
+
+[data-testid="stFileUploader"] section {
+    padding: 14px !important;
+    border-radius: 12px !important;
+}
+
+[data-testid="stFileUploader"] p {
+    font-size: 14px !important;
+}
+
+[data-testid="stFileUploader"] button {
+    padding: 6px 12px !important;
+    font-size: 13px !important;
+}
+
+[data-testid="stFileUploader"] {
+    margin-bottom: 10px !important;
+}
+
+[data-testid="stFileUploader"] section div {
+    gap: 6px !important;
+}
+
+/* ===== Summary Card ===== */
+.summary-card {
+    background: linear-gradient(135deg, #0f172a, #1e293b);
+    padding: 25px;
+    border-radius: 18px;
+    text-align: center;
+    border: 1px solid #334155;
+    transition: 0.2s;
+}
+
+.summary-card:hover {
+    transform: translateY(-3px);
+}
+
+.summary-title {
+    color: #94a3b8;
+    font-size: 16px;
+}
+
+.summary-number {
+    color: white;
+    font-size: 48px;
+    font-weight: 700;
+    margin: 10px 0;
+}
+
+.summary-error {
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 12px;
+    border: 1px solid #22c55e;
+    color: #22c55e;
+    font-weight: 600;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# =========================
 # FUNCTIONS
 # =========================
 def extract_json(text):
@@ -87,45 +161,30 @@ def process_file(df):
     return rows
 
 def summary_card(title, total, error):
-    color = "#22c55e" if error == 0 else "#ef4444"
-
     st.markdown(f"""
-    <div style="
-        background: linear-gradient(135deg, #0f172a, #1e293b);
-        padding: 25px;
-        border-radius: 18px;
-        text-align: center;
-        border: 1px solid #334155;
-    ">
-        <div style="color:#94a3b8; font-size:16px;">{title}</div>
-        <div style="color:white; font-size:48px; font-weight:700; margin:10px 0;">
-            {total}
-        </div>
-        <div style="
-            margin-top:10px;
-            padding:12px;
-            border-radius:12px;
-            border:1px solid {color};
-            color:{color};
-            font-weight:600;
-        ">
-            Error: {error}
-        </div>
+    <div class="summary-card">
+        <div class="summary-title">{title}</div>
+        <div class="summary-number">{total}</div>
+        <div class="summary-error">Error: {error}</div>
     </div>
     """, unsafe_allow_html=True)
 
 # =========================
 # UPLOAD
 # =========================
-file1 = st.file_uploader("TCAPLinkageDatahub", type=["xlsx", "csv"])
-file2 = st.file_uploader("TCAPLinkage", type=["xlsx", "csv"])
+col1, col2 = st.columns(2)
+
+with col1:
+    file1 = st.file_uploader("DTEN", type=["xlsx", "csv"])
+
+with col2:
+    file2 = st.file_uploader("DTENTCAP", type=["xlsx", "csv"])
 
 # =========================
 # PROCESS
 # =========================
 if file1:
 
-    # ===== FILE 1 =====
     df1 = pd.read_csv(file1) if file1.name.endswith(".csv") else pd.read_excel(file1)
     rows1 = process_file(df1)
 
@@ -133,7 +192,6 @@ if file1:
     df_vin1 = df_vin1.reset_index(drop=True)
     df_vin1.insert(0, "No.", df_vin1.index + 1)
 
-    # ===== FILE 2 =====
     df_vin2 = pd.DataFrame()
 
     if file2:
@@ -144,7 +202,6 @@ if file1:
         df_vin2 = df_vin2.reset_index(drop=True)
         df_vin2.insert(0, "No.", df_vin2.index + 1)
 
-        # 🔥 ตัด columns
         df_vin2 = df_vin2[[
             "No.",
             "UUID",
@@ -155,39 +212,30 @@ if file1:
         ]]
 
     # =========================
-    # SUMMARY UI
+    # SUMMARY
     # =========================
     st.markdown("## Summary")
 
     cards = []
-
-    cards.append({
-        "title": "TCAPLinkageDatahub",
-        "total": len(df_vin1),
-        "error": 0
-    })
+    cards.append(("DTEN", len(df_vin1), 0))
 
     if not df_vin2.empty:
-        cards.append({
-            "title": "TCAPLinkage ",
-            "total": len(df_vin2),
-            "error": 0
-        })
+        cards.append(("DTENTCAP", len(df_vin2), 0))
 
     cols = st.columns(len(cards))
 
-    for i, card in enumerate(cards):
+    for i, (title, total, error) in enumerate(cards):
         with cols[i]:
-            summary_card(card["title"], card["total"], card["error"])
+            summary_card(title, total, error)
 
     # =========================
     # TABLE
     # =========================
-    st.markdown("### TCAPLinkageDatahub")
+    st.markdown("### DTEN")
     st.dataframe(df_vin1, use_container_width=True)
 
     if not df_vin2.empty:
-        st.markdown("### TCAPLinkage")
+        st.markdown("### DTENTCAP")
         st.dataframe(df_vin2, use_container_width=True)
 
     # =========================
@@ -197,12 +245,11 @@ if file1:
 
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
 
-        df_vin1.to_excel(writer, index=False, sheet_name='VIN_FULL')
+        df_vin1.to_excel(writer, index=False, sheet_name='DTEN')
 
         if not df_vin2.empty:
-            df_vin2.to_excel(writer, index=False, sheet_name='TCAPLinkage')
+            df_vin2.to_excel(writer, index=False, sheet_name='DTENTCAP')
 
-        # 🔥 SUMMARY SHEET
         summary_data = []
 
         summary_data.append({
@@ -230,4 +277,4 @@ if file1:
     )
 
 else:
-    st.info("Please upload 1st file first")
+    st.info("Please upload DTEN file first")
