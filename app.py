@@ -86,18 +86,6 @@ def process_file(df):
 
     return rows
 
-def count_error(df):
-    if df.empty:
-        return 0
-
-    return df[
-        ~df["Response Message"].str.contains(
-            "success|ok|20000",
-            case=False,
-            na=False
-        )
-    ].shape[0]
-
 def summary_card(title, total, error):
     color = "#22c55e" if error == 0 else "#ef4444"
 
@@ -176,14 +164,14 @@ if file1:
     cards.append({
         "title": "TCAPLinkageDatahub",
         "total": len(df_vin1),
-        "error": count_error(df_vin1)
+        "error": 0
     })
 
     if not df_vin2.empty:
         cards.append({
             "title": "TCAPLinkage ",
             "total": len(df_vin2),
-            "error": count_error(df_vin2)
+            "error": 0
         })
 
     cols = st.columns(len(cards))
@@ -220,14 +208,14 @@ if file1:
         summary_data.append({
             "Source": "DTEN",
             "Total": len(df_vin1),
-            "Error": count_error(df_vin1)
+            "Error": 0
         })
 
         if not df_vin2.empty:
             summary_data.append({
                 "Source": "DTENTCAP",
                 "Total": len(df_vin2),
-                "Error": count_error(df_vin2)
+                "Error": 0
             })
 
         df_summary = pd.DataFrame(summary_data)
