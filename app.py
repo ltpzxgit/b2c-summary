@@ -1,11 +1,10 @@
 import streamlit as st
 import pandas as pd
-import re
 import json
 from io import BytesIO
 
 st.set_page_config(page_title="ITOSE - VIN JSON", layout="wide")
-st.title("ITOSE Tools - VIN + DeviceID (JSON Mode)")
+st.title("ITOSE Tools - VIN + DeviceID (JSON Correct)")
 
 # =========================
 # UPLOAD
@@ -13,7 +12,7 @@ st.title("ITOSE Tools - VIN + DeviceID (JSON Mode)")
 datahub_file = st.file_uploader("TCAPLinkageDatahub", type=["xlsx", "csv"])
 
 # =========================
-# PROCESS (JSON BLOCK)
+# PROCESS (FULL JSON PARSE)
 # =========================
 if datahub_file:
 
@@ -21,46 +20,42 @@ if datahub_file:
 
     vin_map = {}
 
-    # 🔥 ดึง JSON block ทั้งหมด
-    json_blocks = []
-
     for col in df.columns:
         for val in df[col]:
+
             if pd.isna(val):
                 continue
 
             text = str(val)
 
-            # หา JSON ใน string
-            matches = re.findall(r'\{.*?\}', text)
-            for m in matches:
-                json_blocks.append(m)
+            try:
+                data = json.loads(text)
 
-    # =========================
-    # PARSE JSON
-    # =========================
-    for block in json_blocks:
+                # 🔥 case 1: เป็น list
+                if isinstance(data, list):
+                    for item in data:
+                        vin = item.get("vin", "")
+                        device = item.get("deviceId", "")
 
-        try:
-            data = json.loads(block)
+                        if vin:
+                            vin_map[vin] = {
+                                "VIN": vin,
+                                "DeviceID": device
+                            }
 
-            # 🔥 บางเคส data อยู่ใน list
-            if isinstance(data, dict):
+                # 🔥 case 2: เป็น dict
+                elif isinstance(data, dict):
+                    vin = data.get("vin", "")
+                    device = data.get("deviceId", "")
 
-                # VIN
-                vin = data.get("vin", "")
+                    if vin:
+                        vin_map[vin] = {
+                            "VIN": vin,
+                            "DeviceID": device
+                        }
 
-                # DeviceID
-                device = data.get("deviceId", "")
-
-                if vin:
-                    vin_map[vin] = {
-                        "VIN": vin,
-                        "DeviceID": device
-                    }
-
-        except:
-            continue  # ข้าม block ที่ parse ไม่ได้
+            except:
+                continue  # ข้ามเฉพาะอัน parse ไม่ได้
 
     vin_list = list(vin_map.values())
 
@@ -93,7 +88,7 @@ if datahub_file:
         st.download_button(
             "Download",
             data=output,
-            file_name="vin-json.xlsx"
+            file_name="vin-json-final.xlsx"
         )
 
     else:
