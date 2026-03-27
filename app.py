@@ -129,8 +129,8 @@ def summary_card(title, total, error):
 # =========================
 # UPLOAD
 # =========================
-file1 = st.file_uploader("TCAPLinkageDatahub (ไฟล์ 1)", type=["xlsx", "csv"])
-file2 = st.file_uploader("TCAPLinkage (ไฟล์ 2)", type=["xlsx", "csv"])
+file1 = st.file_uploader("TCAPLinkageDatahub", type=["xlsx", "csv"])
+file2 = st.file_uploader("TCAPLinkage", type=["xlsx", "csv"])
 
 # =========================
 # PROCESS
@@ -174,14 +174,14 @@ if file1:
     cards = []
 
     cards.append({
-        "title": "DTEN",
+        "title": "TCAPLinkageDatahub",
         "total": len(df_vin1),
         "error": count_error(df_vin1)
     })
 
     if not df_vin2.empty:
         cards.append({
-            "title": "DTENTCAP",
+            "title": "TCAPLinkage ",
             "total": len(df_vin2),
             "error": count_error(df_vin2)
         })
@@ -242,4 +242,4 @@ if file1:
     )
 
 else:
-    st.info("กรุณา Upload ไฟล์ 1 ก่อน")
+    st.info("Please upload 1st file first")
