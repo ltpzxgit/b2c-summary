@@ -21,9 +21,11 @@ def get_uuid(text):
     m = re.search(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} ([a-f0-9\-]{36})', text)
     return m.group(1) if m else None
 
-def get_json_part(text):
+def extract_json(text):
     try:
         start = text.find("{")
+        if start == -1:
+            return None
         return json.loads(text[start:])
     except:
         return None
@@ -39,6 +41,9 @@ if file:
 
     vin_map = {}
 
+    # =========================
+    # PARSE
+    # =========================
     for col in df.columns:
         for val in df[col]:
             if pd.isna(val):
@@ -47,15 +52,28 @@ if file:
             text = str(val)
 
             uuid = get_uuid(text)
-            json_data = get_json_part(text)
+            json_data = extract_json(text)
 
             if not json_data:
                 continue
 
-            # 👉 ดึง array data
+            # =========================
+            # HANDLE data STRUCTURE
+            # =========================
             data_list = json_data.get("data", [])
 
+            if isinstance(data_list, dict):
+                data_list = [data_list]
+            elif not isinstance(data_list, list):
+                data_list = []
+
+            # =========================
+            # LOOP VIN
+            # =========================
             for item in data_list:
+
+                if not isinstance(item, dict):
+                    continue
 
                 vin = item.get("vin")
                 if not vin:
@@ -64,7 +82,7 @@ if file:
                 device = item.get("deviceId")
                 carrier = item.get("carrier")
                 sim = item.get("simPackage")
-                msg = json_data.get("message")  # message อยู่ root
+                msg = json_data.get("message")  # root message
                 date = item.get("Sendingtime")
 
                 dt = pd.to_datetime(date, errors="coerce")
@@ -79,7 +97,9 @@ if file:
                     "_dt": dt
                 }
 
-                # 👉 keep latest per VIN
+                # =========================
+                # KEEP LATEST PER VIN
+                # =========================
                 if vin not in vin_map or dt > vin_map[vin]["_dt"]:
                     vin_map[vin] = record
 
@@ -87,13 +107,19 @@ if file:
     # CHECK
     # =========================
     if not vin_map:
-        st.error("❌ No VIN extracted")
+        st.error("❌ No VIN extracted → ตรวจ format log")
         st.stop()
 
     df_clean = pd.DataFrame(vin_map.values())
 
+    # =========================
+    # SORT
+    # =========================
     df_clean = df_clean.sort_values("_dt", ascending=False)
 
+    # =========================
+    # SELECT COLUMNS
+    # =========================
     df_clean = df_clean[[
         "UUID",
         "VIN",
@@ -106,7 +132,14 @@ if file:
     df_clean = df_clean.reset_index(drop=True)
     df_clean.insert(0, "No.", df_clean.index + 1)
 
-    st.success(f"✅ Total VIN: {len(df_clean)}")
+    # =========================
+    # SUMMARY
+    # =========================
+    st.success(f"✅ Total VIN (Unique): {len(df_clean)}")
+
+    # =========================
+    # SHOW TABLE
+    # =========================
     st.dataframe(df_clean, use_container_width=True)
 
     # =========================
