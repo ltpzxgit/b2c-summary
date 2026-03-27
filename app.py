@@ -4,24 +4,29 @@ import re
 import json
 from io import BytesIO
 
-st.set_page_config(page_title="ITOSE - VIN JSON", layout="wide")
-st.title("ITOSE Tools - VIN + DeviceID (Hybrid Mode)")
+st.set_page_config(page_title="ITOSE - VIN FULL", layout="wide")
+st.title("ITOSE Tools - VIN + DeviceID + Carrier + SimPackage")
 
 # =========================
 # FUNCTIONS
 # =========================
 def extract_json(text):
-    # ดึง JSON array ก่อน
     match = re.search(r'(\[.*\])', text)
     if match:
         return match.group(1)
 
-    # fallback: dict
     match = re.search(r'(\{.*\})', text)
     if match:
         return match.group(1)
 
     return None
+
+def map_sim(sim):
+    if sim == "C":
+        return "Commercial"
+    elif sim == "R":
+        return "Registration"
+    return sim or ""
 
 # =========================
 # UPLOAD
@@ -52,27 +57,41 @@ if datahub_file:
             try:
                 data = json.loads(json_str)
 
-                # 🔥 list case
+                # =========================
+                # LIST CASE
+                # =========================
                 if isinstance(data, list):
                     for item in data:
+
                         vin = item.get("vin", "")
                         device = item.get("deviceId", "")
+                        carrier = item.get("carrier", "")
+                        sim = map_sim(item.get("simPackage", ""))
 
                         if vin:
                             vin_map[vin] = {
                                 "VIN": vin,
-                                "DeviceID": device
+                                "DeviceID": device,
+                                "Carrier": carrier,
+                                "SimPackage": sim
                             }
 
-                # 🔥 dict case
+                # =========================
+                # DICT CASE
+                # =========================
                 elif isinstance(data, dict):
+
                     vin = data.get("vin", "")
                     device = data.get("deviceId", "")
+                    carrier = data.get("carrier", "")
+                    sim = map_sim(data.get("simPackage", ""))
 
                     if vin:
                         vin_map[vin] = {
                             "VIN": vin,
-                            "DeviceID": device
+                            "DeviceID": device,
+                            "Carrier": carrier,
+                            "SimPackage": sim
                         }
 
             except:
@@ -102,14 +121,14 @@ if datahub_file:
         # =========================
         output = BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df_vin.to_excel(writer, index=False, sheet_name='VIN_DEVICE')
+            df_vin.to_excel(writer, index=False, sheet_name='VIN_FULL')
 
         output.seek(0)
 
         st.download_button(
             "Download",
             data=output,
-            file_name="vin-final.xlsx"
+            file_name="vin-full.xlsx"
         )
 
     else:
