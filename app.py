@@ -4,8 +4,8 @@ import re
 import json
 from io import BytesIO
 
-st.set_page_config(page_title="ITOSE - VIN FULL", layout="wide")
-st.title("ITOSE Tools - VIN FULL VERSION")
+st.set_page_config(page_title="ITOSE - VIN FINAL", layout="wide")
+st.title("ITOSE Tools - VIN FINAL VERSION")
 
 # =========================
 # FUNCTIONS
@@ -14,11 +14,6 @@ def extract_json(text):
     match = re.search(r'(\[.*\])', text)
     if match:
         return match.group(1)
-
-    match = re.search(r'(\{.*\})', text)
-    if match:
-        return match.group(1)
-
     return None
 
 def map_sim(sim):
@@ -27,6 +22,31 @@ def map_sim(sim):
     elif sim == "R":
         return "Registration"
     return sim or ""
+
+def extract_tail(text):
+    """
+    ดึง message + statusCode จากท้าย block
+    """
+    response = ""
+    status = ""
+    message = ""
+
+    # response message (Operation Success)
+    m1 = re.search(r'"message"\s*:\s*"([^"]+)"\s*,\s*"statusCode"', text)
+    if m1:
+        response = m1.group(1)
+
+    # statusCode
+    m2 = re.search(r'"statusCode"\s*:\s*(\d+)', text)
+    if m2:
+        status = m2.group(1)
+
+    # message ใน block (Process completed successfully)
+    m3 = re.search(r'"message"\s*:\s*"Process[^"]+"', text)
+    if m3:
+        message = m3.group(0).split(":")[1].strip().replace('"', '')
+
+    return response, status, message
 
 # =========================
 # UPLOAD
@@ -57,49 +77,16 @@ if datahub_file:
             try:
                 data = json.loads(json_str)
 
-                # 🔥 root message + status
-                response_message = ""
-                status_code = ""
+                # 🔥 extract tail
+                response, status, msg = extract_tail(text)
 
-                if isinstance(data, dict):
-                    response_message = data.get("message", "")
-                    status_code = data.get("statusCode", "")
-
-                # =========================
-                # LIST CASE (data อยู่ข้างใน)
-                # =========================
-                if isinstance(data, dict) and isinstance(data.get("data"), list):
-
-                    for item in data["data"]:
-
-                        vin = item.get("vin", "")
-                        device = item.get("deviceId", "")
-                        carrier = item.get("carrier", "")
-                        sim = map_sim(item.get("simPackage", ""))
-                        message = item.get("message", "")
-
-                        if vin:
-                            vin_map[vin] = {
-                                "VIN": vin,
-                                "DeviceID": device,
-                                "Carrier": carrier,
-                                "SimPackage": sim,
-                                "Response Message": response_message,
-                                "StatusCode": status_code,
-                                "Message": message
-                            }
-
-                # =========================
-                # fallback (plain list)
-                # =========================
-                elif isinstance(data, list):
+                if isinstance(data, list):
                     for item in data:
 
                         vin = item.get("vin", "")
                         device = item.get("deviceId", "")
                         carrier = item.get("carrier", "")
                         sim = map_sim(item.get("simPackage", ""))
-                        message = item.get("message", "")
 
                         if vin:
                             vin_map[vin] = {
@@ -107,9 +94,9 @@ if datahub_file:
                                 "DeviceID": device,
                                 "Carrier": carrier,
                                 "SimPackage": sim,
-                                "Response Message": "",
-                                "StatusCode": "",
-                                "Message": message
+                                "Response Message": response,
+                                "StatusCode": status,
+                                "Message": msg
                             }
 
             except:
@@ -146,7 +133,7 @@ if datahub_file:
         st.download_button(
             "Download",
             data=output,
-            file_name="vin-full-final.xlsx"
+            file_name="vin-final.xlsx"
         )
 
     else:
