@@ -12,39 +12,6 @@ st.title("ITOSE Tools - B2C Summary")
 # =========================
 st.markdown("""
 <style>
-.block-container {
-    padding-top: 2rem;
-    padding-bottom: 2rem;
-}
-
-/* Upload Compact */
-[data-testid="stFileUploader"] > div {
-    padding: 8px !important;
-}
-
-[data-testid="stFileUploader"] section {
-    padding: 14px !important;
-    border-radius: 12px !important;
-}
-
-[data-testid="stFileUploader"] p {
-    font-size: 14px !important;
-}
-
-[data-testid="stFileUploader"] button {
-    padding: 6px 12px !important;
-    font-size: 13px !important;
-}
-
-[data-testid="stFileUploader"] {
-    margin-bottom: 10px !important;
-}
-
-[data-testid="stFileUploader"] section div {
-    gap: 6px !important;
-}
-
-/* Summary Card */
 .summary-card {
     background: linear-gradient(135deg, #0f172a, #1e293b);
     padding: 25px;
