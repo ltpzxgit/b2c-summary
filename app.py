@@ -295,7 +295,7 @@ if file1:
     output.seek(0)
 
     st.download_button(
-        "Download",
+        "Download Summary",
         data=output,
         file_name="b2c-summary.xlsx"
     )
