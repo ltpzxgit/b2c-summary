@@ -80,7 +80,7 @@ st.markdown("""
 # FUNCTIONS
 # =========================
 def extract_json(text):
-    match = re.search(r'(\[.*?\])', text)
+    match = re.search(r'(\[.*\])', text)
     return match.group(1) if match else None
 
 def map_sim(sim):
@@ -93,7 +93,7 @@ def extract_tail(text):
     if m1:
         response = m1.group(1)
 
-    m2 = re.search(r'"statusCode"\s*:\s*"?(\d+)"?', text)
+    m2 = re.search(r'"statusCode"\s*:\s*(\d+)', text)
     if m2:
         status = m2.group(1)
 
