@@ -16,35 +16,26 @@ st.markdown("""
     padding-top: 2rem;
     padding-bottom: 2rem;
 }
-
-/* Upload Compact */
 [data-testid="stFileUploader"] > div {
     padding: 8px !important;
 }
-
 [data-testid="stFileUploader"] section {
     padding: 14px !important;
     border-radius: 12px !important;
 }
-
 [data-testid="stFileUploader"] p {
     font-size: 14px !important;
 }
-
 [data-testid="stFileUploader"] button {
     padding: 6px 12px !important;
     font-size: 13px !important;
 }
-
 [data-testid="stFileUploader"] {
     margin-bottom: 10px !important;
 }
-
 [data-testid="stFileUploader"] section div {
     gap: 6px !important;
 }
-
-/* Summary Card */
 .summary-card {
     background: linear-gradient(135deg, #0f172a, #1e293b);
     padding: 25px;
@@ -52,19 +43,16 @@ st.markdown("""
     text-align: center;
     border: 1px solid #334155;
 }
-
 .summary-title {
     color: #94a3b8;
     font-size: 16px;
 }
-
 .summary-number {
     color: white;
     font-size: 48px;
     font-weight: 700;
     margin: 10px 0;
 }
-
 .summary-error {
     margin-top: 10px;
     padding: 10px;
@@ -99,9 +87,6 @@ def extract_tail(text):
     if m_response:
         response = m_response.group(1)
 
-    if "Process" in response:
-        message = response
-
     return response, status, message
 
 UUID_REGEX = r'([a-f0-9\-]{36})'
@@ -110,10 +95,11 @@ def extract_uuid(text):
     return m.group(1) if m else ""
 
 # =========================
-# FILE 1 (🔥 FIX แค่ตรงนี้)
+# FILE 1 (🔥 FIX: ดึงจาก block จริง)
 # =========================
 def process_file(df):
     rows = []
+    last_response = {}
 
     for col in df.columns:
         for val in df[col]:
@@ -122,6 +108,13 @@ def process_file(df):
                 continue
 
             text = str(val)
+            uuid = extract_uuid(text)
+
+            # เก็บ response จาก block
+            if "response body" in text:
+                response, status, msg = extract_tail(text)
+                if uuid:
+                    last_response[uuid] = (response, status, msg)
 
             json_str = extract_json(text)
             if not json_str:
@@ -129,12 +122,9 @@ def process_file(df):
 
             try:
                 data = json.loads(json_str)
-                uuid = extract_uuid(text)
 
-                # ✅ FIX: ไม่ใช้ extract_tail แล้ว
-                response = "Operation Success"
-                status = ""
-                msg = ""
+                # ดึงค่าจาก UUID เดียวกัน
+                response, status, msg = last_response.get(uuid, ("", "", ""))
 
                 if isinstance(data, list):
                     for item in data:
@@ -152,13 +142,14 @@ def process_file(df):
                             "StatusCode": status,
                             "Message": msg
                         })
+
             except:
                 continue
 
     return rows
 
 # =========================
-# FILE 2 (เดิม ไม่แตะ)
+# FILE 2 (เดิม)
 # =========================
 def process_file_v2(df):
     rows = []
@@ -210,6 +201,7 @@ def process_file_v2(df):
                             "StatusCode": status,
                             "Message": msg
                         })
+
             except:
                 continue
 
