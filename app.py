@@ -8,7 +8,7 @@ st.set_page_config(page_title="ITOSE - B2C", layout="wide")
 st.title("ITOSE Tools - B2C Summary")
 
 # =========================
-# UI STYLE (เหมือนเดิม 100%)
+# UI STYLE
 # =========================
 st.markdown("""
 <style>
@@ -16,35 +16,26 @@ st.markdown("""
     padding-top: 2rem;
     padding-bottom: 2rem;
 }
-
-/* Upload Compact */
 [data-testid="stFileUploader"] > div {
     padding: 8px !important;
 }
-
 [data-testid="stFileUploader"] section {
     padding: 14px !important;
     border-radius: 12px !important;
 }
-
 [data-testid="stFileUploader"] p {
     font-size: 14px !important;
 }
-
 [data-testid="stFileUploader"] button {
     padding: 6px 12px !important;
     font-size: 13px !important;
 }
-
 [data-testid="stFileUploader"] {
     margin-bottom: 10px !important;
 }
-
 [data-testid="stFileUploader"] section div {
     gap: 6px !important;
 }
-
-/* Summary Card */
 .summary-card {
     background: linear-gradient(135deg, #0f172a, #1e293b);
     padding: 25px;
@@ -52,19 +43,16 @@ st.markdown("""
     text-align: center;
     border: 1px solid #334155;
 }
-
 .summary-title {
     color: #94a3b8;
     font-size: 16px;
 }
-
 .summary-number {
     color: white;
     font-size: 48px;
     font-weight: 700;
     margin: 10px 0;
 }
-
 .summary-error {
     margin-top: 10px;
     padding: 10px;
@@ -80,7 +68,7 @@ st.markdown("""
 # FUNCTIONS
 # =========================
 def extract_json(text):
-    match = re.search(r'(\[.*\])', text)  # ไม่แตะ
+    match = re.search(r'(\[.*\])', text)
     return match.group(1) if match else None
 
 def map_sim(sim):
@@ -89,22 +77,21 @@ def map_sim(sim):
 def extract_tail(text):
     response, status, message = "", "", ""
 
-    # fix double quote
     text = text.replace('""', '"')
 
-    m1 = re.search(r'"message"\s*:\s*"([^"]+)"\s*,\s*"statusCode"', text)
-    if m1:
-        response = m1.group(1)
+    # statusCode
+    m_status = re.search(r'"statusCode"\s*:\s*"?(\d+)"?', text)
+    if m_status:
+        status = m_status.group(1)
 
-    m2 = re.search(r'"statusCode"\s*:\s*"?(\d+)"?', text)
-    if m2:
-        status = m2.group(1)
+    # message (Successful completion)
+    m_response = re.search(r'"message"\s*:\s*"([^"]+)"', text)
+    if m_response:
+        response = m_response.group(1)
 
-    m3 = re.search(r'"message"\s*:\s*"([^"]+)"', text)
-    if m3:
-        msg_val = m3.group(1)
-        if "Process" in msg_val:
-            message = msg_val
+    # optional
+    if "Process" in response:
+        message = response
 
     return response, status, message
 
@@ -114,7 +101,7 @@ def extract_uuid(text):
     return m.group(1) if m else ""
 
 # =========================
-# FILE 1 (เดิม 100%)
+# FILE 1 (เดิม)
 # =========================
 def process_file(df):
     rows = []
@@ -139,7 +126,6 @@ def process_file(df):
 
                 if isinstance(data, list):
                     for item in data:
-
                         vin = item.get("vin", "")
                         if not vin:
                             continue
@@ -154,20 +140,19 @@ def process_file(df):
                             "StatusCode": status,
                             "Message": msg
                         })
-
             except:
                 continue
 
     return rows
 
 # =========================
-# FILE 2 (UUID Mapping)
+# FILE 2 (UUID mapping)
 # =========================
 def process_file_v2(df):
     rows = []
     response_map = {}
 
-    # pass 1: เก็บ response ทั้งไฟล์
+    # pass 1: response
     for col in df.columns:
         for val in df[col]:
             if pd.isna(val):
@@ -181,7 +166,7 @@ def process_file_v2(df):
                 if uuid:
                     response_map[uuid] = (response, status, msg)
 
-    # pass 2: map VIN
+    # pass 2: VIN
     for col in df.columns:
         for val in df[col]:
             if pd.isna(val):
@@ -215,7 +200,6 @@ def process_file_v2(df):
                             "StatusCode": status,
                             "Message": msg
                         })
-
             except:
                 continue
 
@@ -258,14 +242,11 @@ if file1:
         df_vin2 = df_vin2.reset_index(drop=True)
         df_vin2.insert(0, "No.", df_vin2.index + 1)
 
-        df_vin2 = df_vin2[[
-            "No.", "UUID", "VIN", "DeviceID",
-            "Response Message", "StatusCode"
-        ]]
+        df_vin2 = df_vin2[
+            ["No.", "UUID", "VIN", "DeviceID", "Response Message", "StatusCode"]
+        ]
 
-    # =========================
     # SUMMARY
-    # =========================
     st.markdown("## Summary")
 
     cards = []
@@ -280,9 +261,7 @@ if file1:
         with cols[i]:
             summary_card(title, total, error)
 
-    # =========================
     # TABLE
-    # =========================
     st.markdown("### TCAPLinkageDatahub")
     st.dataframe(df_vin1, use_container_width=True)
 
@@ -290,9 +269,7 @@ if file1:
         st.markdown("### TCAPLinkage")
         st.dataframe(df_vin2, use_container_width=True)
 
-    # =========================
     # EXPORT
-    # =========================
     output = BytesIO()
 
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
