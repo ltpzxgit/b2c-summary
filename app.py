@@ -79,20 +79,13 @@ def extract_tail(text):
 
     text = text.replace('""', '"')
 
-    # StatusCode
     m_status = re.search(r'"statusCode"\s*:\s*"?(\d+)"?', text)
     if m_status:
         status = m_status.group(1)
 
-    # ResponseMessage (ตัวหลัก)
-    m_resp = re.search(r'"responseMessage"\s*:\s*"([^"]+)"', text)
-    if m_resp:
-        response = m_resp.group(1)
-
-    # Message (process message)
-    m_msg = re.search(r'"message"\s*:\s*"([^"]+)"', text)
-    if m_msg:
-        message = m_msg.group(1)
+    m_response = re.search(r'"message"\s*:\s*"([^"]+)"', text)
+    if m_response:
+        response = m_response.group(1)
 
     return response, status, message
 
@@ -102,7 +95,7 @@ def extract_uuid(text):
     return m.group(1) if m else ""
 
 # =========================
-# FILE 1 (UUID mapping)
+# FILE 1 (🔥 FIX: ดึงจาก block จริง)
 # =========================
 def process_file(df):
     rows = []
@@ -117,7 +110,7 @@ def process_file(df):
             text = str(val)
             uuid = extract_uuid(text)
 
-            # เก็บ response block
+            # เก็บ response จาก block
             if "response body" in text:
                 response, status, msg = extract_tail(text)
                 if uuid:
@@ -130,6 +123,7 @@ def process_file(df):
             try:
                 data = json.loads(json_str)
 
+                # ดึงค่าจาก UUID เดียวกัน
                 response, status, msg = last_response.get(uuid, ("", "", ""))
 
                 if isinstance(data, list):
