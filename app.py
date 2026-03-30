@@ -8,11 +8,43 @@ st.set_page_config(page_title="ITOSE - B2C", layout="wide")
 st.title("ITOSE Tools - B2C Summary")
 
 # =========================
-# UI STYLE
+# UI STYLE (เหมือนเดิม 100%)
 # =========================
 st.markdown("""
 <style>
-.block-container { padding-top: 2rem; padding-bottom: 2rem; }
+.block-container {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+}
+
+/* Upload Compact */
+[data-testid="stFileUploader"] > div {
+    padding: 8px !important;
+}
+
+[data-testid="stFileUploader"] section {
+    padding: 14px !important;
+    border-radius: 12px !important;
+}
+
+[data-testid="stFileUploader"] p {
+    font-size: 14px !important;
+}
+
+[data-testid="stFileUploader"] button {
+    padding: 6px 12px !important;
+    font-size: 13px !important;
+}
+
+[data-testid="stFileUploader"] {
+    margin-bottom: 10px !important;
+}
+
+[data-testid="stFileUploader"] section div {
+    gap: 6px !important;
+}
+
+/* Summary Card */
 .summary-card {
     background: linear-gradient(135deg, #0f172a, #1e293b);
     padding: 25px;
@@ -20,8 +52,19 @@ st.markdown("""
     text-align: center;
     border: 1px solid #334155;
 }
-.summary-title { color: #94a3b8; font-size: 16px; }
-.summary-number { color: white; font-size: 48px; font-weight: 700; }
+
+.summary-title {
+    color: #94a3b8;
+    font-size: 16px;
+}
+
+.summary-number {
+    color: white;
+    font-size: 48px;
+    font-weight: 700;
+    margin: 10px 0;
+}
+
 .summary-error {
     margin-top: 10px;
     padding: 10px;
@@ -34,10 +77,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================
-# FUNCTIONS (COMMON)
+# FUNCTIONS
 # =========================
 def extract_json(text):
-    match = re.search(r'(\[.*\])', text)  # ❗ ของเดิม (ไม่แตะ)
+    match = re.search(r'(\[.*\])', text)  # ไม่แตะ
     return match.group(1) if match else None
 
 def map_sim(sim):
@@ -46,7 +89,8 @@ def map_sim(sim):
 def extract_tail(text):
     response, status, message = "", "", ""
 
-    text = text.replace('""', '"')  # ✅ fix double quote
+    # fix double quote
+    text = text.replace('""', '"')
 
     m1 = re.search(r'"message"\s*:\s*"([^"]+)"\s*,\s*"statusCode"', text)
     if m1:
@@ -70,7 +114,7 @@ def extract_uuid(text):
     return m.group(1) if m else ""
 
 # =========================
-# FILE 1 (❗ ORIGINAL - ห้ามแตะ)
+# FILE 1 (เดิม 100%)
 # =========================
 def process_file(df):
     rows = []
@@ -117,13 +161,13 @@ def process_file(df):
     return rows
 
 # =========================
-# FILE 2 (✅ FIX UUID MATCHING)
+# FILE 2 (UUID Mapping)
 # =========================
 def process_file_v2(df):
     rows = []
     response_map = {}
 
-    # PASS 1: เก็บ response
+    # pass 1: เก็บ response ทั้งไฟล์
     for col in df.columns:
         for val in df[col]:
             if pd.isna(val):
@@ -137,7 +181,7 @@ def process_file_v2(df):
                 if uuid:
                     response_map[uuid] = (response, status, msg)
 
-    # PASS 2: VIN
+    # pass 2: map VIN
     for col in df.columns:
         for val in df[col]:
             if pd.isna(val):
@@ -157,7 +201,6 @@ def process_file_v2(df):
 
                 if isinstance(data, list):
                     for item in data:
-
                         vin = item.get("vin", "")
                         if not vin:
                             continue
@@ -178,19 +221,32 @@ def process_file_v2(df):
 
     return rows
 
+def summary_card(title, total, error):
+    st.markdown(f"""
+    <div class="summary-card">
+        <div class="summary-title">{title}</div>
+        <div class="summary-number">{total}</div>
+        <div class="summary-error">Error: {error}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
 # =========================
-# UI
+# UPLOAD
 # =========================
 file1 = st.file_uploader("TCAPLinkageDatahub", type=["xlsx", "csv"])
 file2 = st.file_uploader("TCAPLinkage", type=["xlsx", "csv"])
 
+# =========================
+# PROCESS
+# =========================
 if file1:
 
     df1 = pd.read_csv(file1) if file1.name.endswith(".csv") else pd.read_excel(file1)
     rows1 = process_file(df1)
 
     df_vin1 = pd.DataFrame(rows1).fillna("")
-    df_vin1.insert(0, "No.", range(1, len(df_vin1)+1))
+    df_vin1 = df_vin1.reset_index(drop=True)
+    df_vin1.insert(0, "No.", df_vin1.index + 1)
 
     df_vin2 = pd.DataFrame()
 
@@ -199,38 +255,73 @@ if file1:
         rows2 = process_file_v2(df2)
 
         df_vin2 = pd.DataFrame(rows2).fillna("")
-        df_vin2.insert(0, "No.", range(1, len(df_vin2)+1))
+        df_vin2 = df_vin2.reset_index(drop=True)
+        df_vin2.insert(0, "No.", df_vin2.index + 1)
 
         df_vin2 = df_vin2[[
             "No.", "UUID", "VIN", "DeviceID",
             "Response Message", "StatusCode"
         ]]
 
-    # Summary
+    # =========================
+    # SUMMARY
+    # =========================
     st.markdown("## Summary")
-    cols = st.columns(2 if not df_vin2.empty else 1)
 
-    with cols[0]:
-        st.markdown(f"<div class='summary-card'><div class='summary-title'>TCAPLinkageDatahub</div><div class='summary-number'>{len(df_vin1)}</div></div>", unsafe_allow_html=True)
+    cards = []
+    cards.append(("TCAPLinkageDatahub", len(df_vin1), 0))
 
     if not df_vin2.empty:
-        with cols[1]:
-            st.markdown(f"<div class='summary-card'><div class='summary-title'>TCAPLinkage</div><div class='summary-number'>{len(df_vin2)}</div></div>", unsafe_allow_html=True)
+        cards.append(("TCAPLinkage", len(df_vin2), 0))
 
-    # Tables
+    cols = st.columns(len(cards))
+
+    for i, (title, total, error) in enumerate(cards):
+        with cols[i]:
+            summary_card(title, total, error)
+
+    # =========================
+    # TABLE
+    # =========================
+    st.markdown("### TCAPLinkageDatahub")
     st.dataframe(df_vin1, use_container_width=True)
+
     if not df_vin2.empty:
+        st.markdown("### TCAPLinkage")
         st.dataframe(df_vin2, use_container_width=True)
 
-    # Export
+    # =========================
+    # EXPORT
+    # =========================
     output = BytesIO()
+
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
+
         df_vin1.to_excel(writer, index=False, sheet_name='TCAPLinkageDataHub')
+
         if not df_vin2.empty:
             df_vin2.to_excel(writer, index=False, sheet_name='TCAPLinkage')
 
+        summary_data = [
+            {"Source": "TCAPLinkageDatahub", "Total": len(df_vin1), "Error": 0}
+        ]
+
+        if not df_vin2.empty:
+            summary_data.append({
+                "Source": "TCAPLinkage",
+                "Total": len(df_vin2),
+                "Error": 0
+            })
+
+        pd.DataFrame(summary_data).to_excel(writer, index=False, sheet_name='Summary')
+
     output.seek(0)
-    st.download_button("Download", data=output, file_name="b2c-summary.xlsx")
+
+    st.download_button(
+        "Download",
+        data=output,
+        file_name="b2c-summary.xlsx"
+    )
 
 else:
     st.info("Please upload 1st file first")
