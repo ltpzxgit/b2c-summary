@@ -89,11 +89,14 @@ def map_sim(sim):
 def extract_tail(text):
     response, status, message = "", "", ""
 
+    # ✅ FIX: รองรับ double quote จาก log
+    text = text.replace('""', '"')
+
     m1 = re.search(r'"message"\s*:\s*"([^"]+)"\s*,\s*"statusCode"', text)
     if m1:
         response = m1.group(1)
 
-    m2 = re.search(r'"statusCode"\s*:\s*(\d+)', text)
+    m2 = re.search(r'"statusCode"\s*:\s*"?(\d+)"?', text)
     if m2:
         status = m2.group(1)
 
