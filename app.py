@@ -16,26 +16,35 @@ st.markdown("""
     padding-top: 2rem;
     padding-bottom: 2rem;
 }
+
+/* Upload Compact */
 [data-testid="stFileUploader"] > div {
     padding: 8px !important;
 }
+
 [data-testid="stFileUploader"] section {
     padding: 14px !important;
     border-radius: 12px !important;
 }
+
 [data-testid="stFileUploader"] p {
     font-size: 14px !important;
 }
+
 [data-testid="stFileUploader"] button {
     padding: 6px 12px !important;
     font-size: 13px !important;
 }
+
 [data-testid="stFileUploader"] {
     margin-bottom: 10px !important;
 }
+
 [data-testid="stFileUploader"] section div {
     gap: 6px !important;
 }
+
+/* Summary Card */
 .summary-card {
     background: linear-gradient(135deg, #0f172a, #1e293b);
     padding: 25px;
@@ -43,16 +52,19 @@ st.markdown("""
     text-align: center;
     border: 1px solid #334155;
 }
+
 .summary-title {
     color: #94a3b8;
     font-size: 16px;
 }
+
 .summary-number {
     color: white;
     font-size: 48px;
     font-weight: 700;
     margin: 10px 0;
 }
+
 .summary-error {
     margin-top: 10px;
     padding: 10px;
@@ -79,17 +91,14 @@ def extract_tail(text):
 
     text = text.replace('""', '"')
 
-    # statusCode
     m_status = re.search(r'"statusCode"\s*:\s*"?(\d+)"?', text)
     if m_status:
         status = m_status.group(1)
 
-    # message (Successful completion)
     m_response = re.search(r'"message"\s*:\s*"([^"]+)"', text)
     if m_response:
         response = m_response.group(1)
 
-    # optional
     if "Process" in response:
         message = response
 
@@ -152,7 +161,6 @@ def process_file_v2(df):
     rows = []
     response_map = {}
 
-    # pass 1: response
     for col in df.columns:
         for val in df[col]:
             if pd.isna(val):
@@ -166,7 +174,6 @@ def process_file_v2(df):
                 if uuid:
                     response_map[uuid] = (response, status, msg)
 
-    # pass 2: VIN
     for col in df.columns:
         for val in df[col]:
             if pd.isna(val):
@@ -215,10 +222,17 @@ def summary_card(title, total, error):
     """, unsafe_allow_html=True)
 
 # =========================
-# UPLOAD
+# UPLOAD (🔥 แก้ตรงนี้)
 # =========================
-file1 = st.file_uploader("TCAPLinkageDatahub", type=["xlsx", "csv"])
-file2 = st.file_uploader("TCAPLinkage", type=["xlsx", "csv"])
+col1, col2 = st.columns([1,1], gap="large")
+
+with col1:
+    st.markdown("### TCAPLinkageDatahub")
+    file1 = st.file_uploader("", type=["xlsx", "csv"], key="file1")
+
+with col2:
+    st.markdown("### TCAPLinkage")
+    file2 = st.file_uploader("", type=["xlsx", "csv"], key="file2")
 
 # =========================
 # PROCESS
@@ -269,7 +283,7 @@ if file1:
         st.markdown("### TCAPLinkage")
         st.dataframe(df_vin2, use_container_width=True)
 
-    # EXPORT
+    # EXPORT (ไม่มี Summary sheet)
     output = BytesIO()
 
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -279,23 +293,10 @@ if file1:
         if not df_vin2.empty:
             df_vin2.to_excel(writer, index=False, sheet_name='TCAPLinkage')
 
-        summary_data = [
-            {"Source": "TCAPLinkageDatahub", "Total": len(df_vin1), "Error": 0}
-        ]
-
-        if not df_vin2.empty:
-            summary_data.append({
-                "Source": "TCAPLinkage",
-                "Total": len(df_vin2),
-                "Error": 0
-            })
-
-        pd.DataFrame(summary_data).to_excel(writer, index=False, sheet_name='Summary')
-
     output.seek(0)
 
     st.download_button(
-        "Download Summary",
+        "Download",
         data=output,
         file_name="b2c-summary.xlsx"
     )
