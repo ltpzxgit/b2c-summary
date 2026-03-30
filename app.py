@@ -16,35 +16,10 @@ st.markdown("""
     padding-top: 2rem;
     padding-bottom: 2rem;
 }
-
-/* Upload Compact */
-[data-testid="stFileUploader"] > div {
-    padding: 8px !important;
-}
-
 [data-testid="stFileUploader"] section {
     padding: 14px !important;
     border-radius: 12px !important;
 }
-
-[data-testid="stFileUploader"] p {
-    font-size: 14px !important;
-}
-
-[data-testid="stFileUploader"] button {
-    padding: 6px 12px !important;
-    font-size: 13px !important;
-}
-
-[data-testid="stFileUploader"] {
-    margin-bottom: 10px !important;
-}
-
-[data-testid="stFileUploader"] section div {
-    gap: 6px !important;
-}
-
-/* Summary Card */
 .summary-card {
     background: linear-gradient(135deg, #0f172a, #1e293b);
     padding: 25px;
@@ -52,19 +27,15 @@ st.markdown("""
     text-align: center;
     border: 1px solid #334155;
 }
-
 .summary-title {
     color: #94a3b8;
     font-size: 16px;
 }
-
 .summary-number {
     color: white;
     font-size: 48px;
     font-weight: 700;
-    margin: 10px 0;
 }
-
 .summary-error {
     margin-top: 10px;
     padding: 10px;
@@ -80,7 +51,7 @@ st.markdown("""
 # FUNCTIONS
 # =========================
 def extract_json(text):
-    match = re.search(r'(\[.*\])', text)
+    match = re.search(r'(\[.*?\])', text)
     return match.group(1) if match else None
 
 def map_sim(sim):
@@ -89,7 +60,7 @@ def map_sim(sim):
 def extract_tail(text):
     response, status, message = "", "", ""
 
-    # ✅ FIX: รองรับ double quote จาก log
+    # ✅ FIX double quote
     text = text.replace('""', '"')
 
     m1 = re.search(r'"message"\s*:\s*"([^"]+)"\s*,\s*"statusCode"', text)
@@ -116,7 +87,11 @@ def extract_uuid(text):
 
 def process_file(df):
     rows = []
+    response_map = {}  # ✅ map uuid → response
 
+    # =========================
+    # PASS 1: เก็บ response ทั้งไฟล์
+    # =========================
     for col in df.columns:
         for val in df[col]:
 
@@ -124,6 +99,24 @@ def process_file(df):
                 continue
 
             text = str(val)
+            uuid = extract_uuid(text)
+
+            if "response body" in text:
+                response, status, msg = extract_tail(text)
+                if uuid:
+                    response_map[uuid] = (response, status, msg)
+
+    # =========================
+    # PASS 2: ดึง VIN + map response
+    # =========================
+    for col in df.columns:
+        for val in df[col]:
+
+            if pd.isna(val):
+                continue
+
+            text = str(val)
+            uuid = extract_uuid(text)
 
             json_str = extract_json(text)
             if not json_str:
@@ -132,8 +125,7 @@ def process_file(df):
             try:
                 data = json.loads(json_str)
 
-                response, status, msg = extract_tail(text)
-                uuid = extract_uuid(text)
+                response, status, msg = response_map.get(uuid, ("", "", ""))
 
                 if isinstance(data, list):
                     for item in data:
@@ -243,13 +235,9 @@ if file1:
         if not df_vin2.empty:
             df_vin2.to_excel(writer, index=False, sheet_name='TCAPLinkage')
 
-        summary_data = []
-
-        summary_data.append({
-            "Source": "TCAPLinkageDatahub",
-            "Total": len(df_vin1),
-            "Error": 0
-        })
+        summary_data = [
+            {"Source": "TCAPLinkageDatahub", "Total": len(df_vin1), "Error": 0}
+        ]
 
         if not df_vin2.empty:
             summary_data.append({
