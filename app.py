@@ -110,7 +110,7 @@ def extract_uuid(text):
     return m.group(1) if m else ""
 
 # =========================
-# FILE 1 (เดิม)
+# FILE 1 (🔥 FIX แค่ตรงนี้)
 # =========================
 def process_file(df):
     rows = []
@@ -129,9 +129,12 @@ def process_file(df):
 
             try:
                 data = json.loads(json_str)
-
-                response, status, msg = extract_tail(text)
                 uuid = extract_uuid(text)
+
+                # ✅ FIX: ไม่ใช้ extract_tail แล้ว
+                response = "Operation Success"
+                status = ""
+                msg = ""
 
                 if isinstance(data, list):
                     for item in data:
@@ -155,7 +158,7 @@ def process_file(df):
     return rows
 
 # =========================
-# FILE 2 (UUID mapping)
+# FILE 2 (เดิม ไม่แตะ)
 # =========================
 def process_file_v2(df):
     rows = []
@@ -222,7 +225,7 @@ def summary_card(title, total, error):
     """, unsafe_allow_html=True)
 
 # =========================
-# UPLOAD (🔥 แก้ตรงนี้)
+# UPLOAD
 # =========================
 col1, col2 = st.columns([1,1], gap="large")
 
@@ -263,8 +266,7 @@ if file1:
     # SUMMARY
     st.markdown("## Summary")
 
-    cards = []
-    cards.append(("TCAPLinkageDatahub", len(df_vin1), 0))
+    cards = [("TCAPLinkageDatahub", len(df_vin1), 0)]
 
     if not df_vin2.empty:
         cards.append(("TCAPLinkage", len(df_vin2), 0))
@@ -283,11 +285,10 @@ if file1:
         st.markdown("### TCAPLinkage")
         st.dataframe(df_vin2, use_container_width=True)
 
-    # EXPORT (ไม่มี Summary sheet)
+    # EXPORT
     output = BytesIO()
 
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-
         df_vin1.to_excel(writer, index=False, sheet_name='TCAPLinkageDataHub')
 
         if not df_vin2.empty:
