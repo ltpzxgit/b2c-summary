@@ -99,6 +99,9 @@ def extract_tail(text):
     if m_response:
         response = m_response.group(1)
 
+    if "Process" in response:
+        message = response
+
     return response, status, message
 
 UUID_REGEX = r'([a-f0-9\-]{36})'
@@ -107,7 +110,7 @@ def extract_uuid(text):
     return m.group(1) if m else ""
 
 # =========================
-# FILE 1 (Operation Success)
+# FILE 1 (เดิม)
 # =========================
 def process_file(df):
     rows = []
@@ -126,12 +129,9 @@ def process_file(df):
 
             try:
                 data = json.loads(json_str)
-                uuid = extract_uuid(text)
 
-                # ✅ FIX: ใช้ค่าเดิม
-                response = "Operation Success"
-                status = ""
-                msg = ""
+                response, status, msg = extract_tail(text)
+                uuid = extract_uuid(text)
 
                 if isinstance(data, list):
                     for item in data:
@@ -161,7 +161,6 @@ def process_file_v2(df):
     rows = []
     response_map = {}
 
-    # pass 1: เก็บ response
     for col in df.columns:
         for val in df[col]:
             if pd.isna(val):
@@ -175,7 +174,6 @@ def process_file_v2(df):
                 if uuid:
                     response_map[uuid] = (response, status, msg)
 
-    # pass 2: map VIN
     for col in df.columns:
         for val in df[col]:
             if pd.isna(val):
@@ -224,7 +222,7 @@ def summary_card(title, total, error):
     """, unsafe_allow_html=True)
 
 # =========================
-# UPLOAD (2 ช่องข้างกัน)
+# UPLOAD (🔥 แก้ตรงนี้)
 # =========================
 col1, col2 = st.columns([1,1], gap="large")
 
@@ -265,7 +263,8 @@ if file1:
     # SUMMARY
     st.markdown("## Summary")
 
-    cards = [("TCAPLinkageDatahub", len(df_vin1), 0)]
+    cards = []
+    cards.append(("TCAPLinkageDatahub", len(df_vin1), 0))
 
     if not df_vin2.empty:
         cards.append(("TCAPLinkage", len(df_vin2), 0))
@@ -284,10 +283,11 @@ if file1:
         st.markdown("### TCAPLinkage")
         st.dataframe(df_vin2, use_container_width=True)
 
-    # EXPORT (ไม่มี Sheet 3)
+    # EXPORT (ไม่มี Summary sheet)
     output = BytesIO()
 
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
+
         df_vin1.to_excel(writer, index=False, sheet_name='TCAPLinkageDataHub')
 
         if not df_vin2.empty:
