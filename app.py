@@ -231,7 +231,7 @@ with col1:
     file1 = st.file_uploader("", type=["xlsx", "csv"], key="file1")
 
 with col2:
-    st.markdown("### TCAPLinkage")
+    st.markdown("TCAPLinkage")
     file2 = st.file_uploader("", type=["xlsx", "csv"], key="file2")
 
 # =========================
