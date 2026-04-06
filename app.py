@@ -8,66 +8,39 @@ st.set_page_config(page_title="ITOSE - B2C", layout="wide")
 st.title("ITOSE Tools - B2C Summary")
 
 # =========================
-# UI STYLE
+# CSS (🔥 เอาจากไฟล์ 2)
 # =========================
 st.markdown("""
 <style>
-.block-container {
-    padding-top: 2rem;
-    padding-bottom: 2rem;
-}
-
-[data-testid="stFileUploader"] > div {
-    padding: 8px !important;
-}
-[data-testid="stFileUploader"] section {
-    padding: 14px !important;
-    border-radius: 12px !important;
-}
-[data-testid="stFileUploader"] p {
-    font-size: 14px !important;
-}
-[data-testid="stFileUploader"] button {
-    padding: 6px 12px !important;
-    font-size: 13px !important;
-}
-[data-testid="stFileUploader"] {
-    margin-bottom: 10px !important;
-}
-[data-testid="stFileUploader"] section div {
-    gap: 6px !important;
-}
-
-.summary-card {
-    background: linear-gradient(135deg, #0f172a, #1e293b);
-    padding: 25px;
-    border-radius: 18px;
+.card {
+    padding: 20px;
+    border-radius: 14px;
+    background: linear-gradient(145deg, #0f172a, #111827);
+    border: 1px solid #374151;
     text-align: center;
-    border: 1px solid #334155;
 }
-
-.summary-title {
-    color: #94a3b8;
-    font-size: 16px;
+.card-title {
+    font-size: 14px;
+    color: #9ca3af;
 }
-
-.summary-number {
+.card-value {
+    font-size: 42px;
+    font-weight: bold;
     color: white;
-    font-size: 48px;
-    font-weight: 700;
-    margin: 10px 0;
-}
-
-.summary-error {
-    margin-top: 10px;
-    padding: 10px;
-    border-radius: 12px;
-    border: 1px solid #22c55e;
-    color: #22c55e;
-    font-weight: 600;
 }
 </style>
 """, unsafe_allow_html=True)
+
+# =========================
+# CARD
+# =========================
+def card(title, value):
+    return f"""
+    <div class="card">
+        <div class="card-title">{title}</div>
+        <div class="card-value">{value}</div>
+    </div>
+    """
 
 # =========================
 # FUNCTIONS
@@ -197,7 +170,7 @@ def process_file_v2(df):
     return rows
 
 # =========================
-# FILE 3 (🔥 เพิ่มใหม่)
+# FILE 3
 # =========================
 def extract_body_data(text):
     if "body={" not in text:
@@ -266,21 +239,16 @@ def parse_vehicle_setting(df):
     return pd.DataFrame(rows)
 
 # =========================
-# UPLOAD (🔥 เพิ่ม file3)
+# UPLOAD
 # =========================
-col1, col2, col3 = st.columns([1,1,1], gap="large")
+c1, c2, c3 = st.columns(3)
 
-with col1:
-    st.markdown("TCAPLinkageDatahub")
-    file1 = st.file_uploader("", type=["xlsx", "csv"], key="file1")
-
-with col2:
-    st.markdown("TCAPLinkage")
-    file2 = st.file_uploader("", type=["xlsx", "csv"], key="file2")
-
-with col3:
-    st.markdown("VehicleSettingRequester")
-    file3 = st.file_uploader("", type=["xlsx", "csv"], key="file3")
+with c1:
+    file1 = st.file_uploader("TCAPLinkageDatahub")
+with c2:
+    file2 = st.file_uploader("TCAPLinkage")
+with c3:
+    file3 = st.file_uploader("VehicleSettingRequester")
 
 # =========================
 # PROCESS
@@ -288,9 +256,7 @@ with col3:
 if file1:
 
     df1 = pd.read_csv(file1) if file1.name.endswith(".csv") else pd.read_excel(file1)
-    rows1 = process_file(df1)
-
-    df_vin1 = pd.DataFrame(rows1).fillna("")
+    df_vin1 = pd.DataFrame(process_file(df1)).fillna("")
     df_vin1.insert(0, "No.", range(1, len(df_vin1)+1))
 
     df_vin2 = pd.DataFrame()
@@ -298,9 +264,7 @@ if file1:
 
     if file2:
         df2 = pd.read_csv(file2) if file2.name.endswith(".csv") else pd.read_excel(file2)
-        rows2 = process_file_v2(df2)
-
-        df_vin2 = pd.DataFrame(rows2).fillna("")
+        df_vin2 = pd.DataFrame(process_file_v2(df2)).fillna("")
         df_vin2.insert(0, "No.", range(1, len(df_vin2)+1))
 
     if file3:
@@ -308,60 +272,49 @@ if file1:
         df_vin3 = parse_vehicle_setting(df3)
 
     # =========================
-    # SUMMARY
+    # SUMMARY (🔥 แบบ FDF)
     # =========================
     st.markdown("## Summary")
 
-    cards = []
-    cards.append(("TCAPLinkageDatahub", len(df_vin1), 0))
+    row = st.columns(3)
 
-    if not df_vin2.empty:
-        cards.append(("TCAPLinkage", len(df_vin2), 0))
+    with row[0]:
+        st.markdown(card("TCAPLinkageDatahub", len(df_vin1)), unsafe_allow_html=True)
+    with row[1]:
+        st.markdown(card("TCAPLinkage", len(df_vin2)), unsafe_allow_html=True)
+    with row[2]:
+        st.markdown(card("VehicleSettingRequester", len(df_vin3)), unsafe_allow_html=True)
 
-    if not df_vin3.empty:
-        cards.append(("VehicleSettingRequester", len(df_vin3), 0))
-
-    cols = st.columns(len(cards))
-
-    for i, (title, total, error) in enumerate(cards):
-        with cols[i]:
-            summary_card(title, total, error)
+    st.divider()
 
     # =========================
     # TABLE
     # =========================
-    st.markdown("### TCAPLinkageDatahub")
+    st.subheader("TCAPLinkageDatahub")
     st.dataframe(df_vin1, use_container_width=True)
 
     if not df_vin2.empty:
-        st.markdown("### TCAPLinkage")
+        st.subheader("TCAPLinkage")
         st.dataframe(df_vin2, use_container_width=True)
 
     if not df_vin3.empty:
-        st.markdown("### VehicleSettingRequester")
+        st.subheader("VehicleSettingRequester")
         st.dataframe(df_vin3, use_container_width=True)
 
     # =========================
     # EXPORT
     # =========================
     output = BytesIO()
-
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df_vin1.to_excel(writer, index=False, sheet_name='TCAPLinkageDataHub')
-
         if not df_vin2.empty:
             df_vin2.to_excel(writer, index=False, sheet_name='TCAPLinkage')
-
         if not df_vin3.empty:
             df_vin3.to_excel(writer, index=False, sheet_name='VehicleSettingRequester')
 
     output.seek(0)
 
-    st.download_button(
-        "Download",
-        data=output,
-        file_name="b2c-summary.xlsx"
-    )
+    st.download_button("Download", data=output, file_name="b2c-summary.xlsx")
 
 else:
     st.info("Please upload 1st file first")
