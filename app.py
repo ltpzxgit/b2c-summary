@@ -8,20 +8,24 @@ st.set_page_config(page_title="ITOSE - B2C", layout="wide")
 st.title("ITOSE Tools - B2C Summary")
 
 # =========================
-# CSS (FDF STYLE)
+# CSS (FDF STYLE + spacing smooth)
 # =========================
 st.markdown("""
 <style>
 .card {
-    padding: 20px;
-    border-radius: 14px;
+    padding: 22px;
+    border-radius: 16px;
     background: linear-gradient(145deg, #0f172a, #111827);
     border: 1px solid #374151;
     text-align: center;
+    transition: 0.2s ease;
+}
+.card:hover {
+    transform: translateY(-2px);
 }
 .card-red {
-    padding: 20px;
-    border-radius: 14px;
+    padding: 22px;
+    border-radius: 16px;
     background: linear-gradient(145deg, #2a0f0f, #1a0f0f);
     border: 1px solid #7f1d1d;
     text-align: center;
@@ -298,25 +302,26 @@ if file1:
                 .iloc[::-1]\
                 .reset_index(drop=True)
 
-            # ✅ FIX ERROR HERE
             df_error["No."] = range(1, len(df_error)+1)
             df_error = df_error[["No."] + [c for c in df_error.columns if c != "No."]]
 
     # =========================
-    # SUMMARY (2x2 GRID)
+    # SUMMARY (2x2 + spacing)
     # =========================
     st.markdown("## Summary")
 
     r1 = st.columns(2)
-    r2 = st.columns(2)
 
     with r1[0]:
         st.markdown(card("TCAPLinkageDatahub", len(df_vin1)), unsafe_allow_html=True)
 
     with r1[1]:
         st.markdown(card("TCAPLinkage", len(df_vin2)), unsafe_allow_html=True)
-        
-st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
+
+    # 🔥 spacing ระหว่างแถว
+    st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
+
+    r2 = st.columns(2)
 
     with r2[0]:
         st.markdown(card("VehicleSettingRequester", len(df_vin3)), unsafe_allow_html=True)
