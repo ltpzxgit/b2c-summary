@@ -315,6 +315,8 @@ if file1:
 
     with r1[1]:
         st.markdown(card("TCAPLinkage", len(df_vin2)), unsafe_allow_html=True)
+        
+st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
 
     with r2[0]:
         st.markdown(card("VehicleSettingRequester", len(df_vin3)), unsafe_allow_html=True)
