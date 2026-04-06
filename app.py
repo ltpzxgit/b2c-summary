@@ -281,7 +281,7 @@ if file1:
         df_vin3 = parse_vehicle_setting(df3)
 
     # =========================
-    # ERROR LOGIC (🔥 สำคัญ)
+    # ERROR LOGIC
     # =========================
     if not df_vin1.empty and not df_vin3.empty:
 
@@ -298,24 +298,28 @@ if file1:
                 .iloc[::-1]\
                 .reset_index(drop=True)
 
-            df_error.insert(0, "No.", range(1, len(df_error)+1))
+            # ✅ FIX ERROR HERE
+            df_error["No."] = range(1, len(df_error)+1)
+            df_error = df_error[["No."] + [c for c in df_error.columns if c != "No."]]
 
     # =========================
-    # SUMMARY
+    # SUMMARY (2x2 GRID)
     # =========================
     st.markdown("## Summary")
 
-    r1 = st.columns(3)
-    r2 = st.columns(1)
+    r1 = st.columns(2)
+    r2 = st.columns(2)
 
     with r1[0]:
         st.markdown(card("TCAPLinkageDatahub", len(df_vin1)), unsafe_allow_html=True)
+
     with r1[1]:
         st.markdown(card("TCAPLinkage", len(df_vin2)), unsafe_allow_html=True)
-    with r1[2]:
-        st.markdown(card("VehicleSettingRequester", len(df_vin3)), unsafe_allow_html=True)
 
     with r2[0]:
+        st.markdown(card("VehicleSettingRequester", len(df_vin3)), unsafe_allow_html=True)
+
+    with r2[1]:
         st.markdown(card("Error", len(df_error), True), unsafe_allow_html=True)
 
     st.divider()
