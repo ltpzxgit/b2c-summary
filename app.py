@@ -8,7 +8,7 @@ st.set_page_config(page_title="ITOSE - B2C", layout="wide")
 st.title("ITOSE Tools - B2C Summary")
 
 # =========================
-# CSS (🔥 เอาจากไฟล์ 2)
+# CSS (FDF STYLE)
 # =========================
 st.markdown("""
 <style>
@@ -17,6 +17,13 @@ st.markdown("""
     border-radius: 14px;
     background: linear-gradient(145deg, #0f172a, #111827);
     border: 1px solid #374151;
+    text-align: center;
+}
+.card-red {
+    padding: 20px;
+    border-radius: 14px;
+    background: linear-gradient(145deg, #2a0f0f, #1a0f0f);
+    border: 1px solid #7f1d1d;
     text-align: center;
 }
 .card-title {
@@ -34,16 +41,17 @@ st.markdown("""
 # =========================
 # CARD
 # =========================
-def card(title, value):
+def card(title, value, is_red=False):
+    cls = "card-red" if is_red else "card"
     return f"""
-    <div class="card">
+    <div class="{cls}">
         <div class="card-title">{title}</div>
         <div class="card-value">{value}</div>
     </div>
     """
 
 # =========================
-# FUNCTIONS
+# COMMON FUNCTIONS
 # =========================
 def extract_json(text):
     match = re.search(r'(\[.*\])', text)
@@ -261,6 +269,7 @@ if file1:
 
     df_vin2 = pd.DataFrame()
     df_vin3 = pd.DataFrame()
+    df_error = pd.DataFrame()
 
     if file2:
         df2 = pd.read_csv(file2) if file2.name.endswith(".csv") else pd.read_excel(file2)
@@ -272,18 +281,42 @@ if file1:
         df_vin3 = parse_vehicle_setting(df3)
 
     # =========================
-    # SUMMARY (🔥 แบบ FDF)
+    # ERROR LOGIC (🔥 สำคัญ)
+    # =========================
+    if not df_vin1.empty and not df_vin3.empty:
+
+        vins_1 = set(df_vin1["VIN"].dropna())
+        vins_3 = set(df_vin3["VIN"].dropna())
+
+        error_vins = vins_1 - vins_3
+
+        if error_vins:
+            df_error = df_vin1[df_vin1["VIN"].isin(error_vins)].copy()
+
+            df_error = df_error.iloc[::-1]\
+                .drop_duplicates(subset=["VIN"], keep="first")\
+                .iloc[::-1]\
+                .reset_index(drop=True)
+
+            df_error.insert(0, "No.", range(1, len(df_error)+1))
+
+    # =========================
+    # SUMMARY
     # =========================
     st.markdown("## Summary")
 
-    row = st.columns(3)
+    r1 = st.columns(3)
+    r2 = st.columns(1)
 
-    with row[0]:
+    with r1[0]:
         st.markdown(card("TCAPLinkageDatahub", len(df_vin1)), unsafe_allow_html=True)
-    with row[1]:
+    with r1[1]:
         st.markdown(card("TCAPLinkage", len(df_vin2)), unsafe_allow_html=True)
-    with row[2]:
+    with r1[2]:
         st.markdown(card("VehicleSettingRequester", len(df_vin3)), unsafe_allow_html=True)
+
+    with r2[0]:
+        st.markdown(card("Error", len(df_error), True), unsafe_allow_html=True)
 
     st.divider()
 
@@ -301,20 +334,34 @@ if file1:
         st.subheader("VehicleSettingRequester")
         st.dataframe(df_vin3, use_container_width=True)
 
+    if not df_error.empty:
+        st.subheader("Error")
+        st.dataframe(df_error, use_container_width=True)
+
     # =========================
     # EXPORT
     # =========================
     output = BytesIO()
+
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df_vin1.to_excel(writer, index=False, sheet_name='TCAPLinkageDataHub')
+
         if not df_vin2.empty:
             df_vin2.to_excel(writer, index=False, sheet_name='TCAPLinkage')
+
         if not df_vin3.empty:
             df_vin3.to_excel(writer, index=False, sheet_name='VehicleSettingRequester')
 
+        if not df_error.empty:
+            df_error.to_excel(writer, index=False, sheet_name='Error')
+
     output.seek(0)
 
-    st.download_button("Download", data=output, file_name="b2c-summary.xlsx")
+    st.download_button(
+        "Download",
+        data=output,
+        file_name="b2c-summary.xlsx"
+    )
 
 else:
     st.info("Please upload 1st file first")
