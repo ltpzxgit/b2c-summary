@@ -227,7 +227,7 @@ def summary_card(title, total, error):
 col1, col2 = st.columns([1,1], gap="large")
 
 with col1:
-    st.markdown("### TCAPLinkageDatahub")
+    st.markdown("TCAPLinkageDatahub")
     file1 = st.file_uploader("", type=["xlsx", "csv"], key="file1")
 
 with col2:
