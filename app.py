@@ -17,34 +17,27 @@ st.markdown("""
     padding-bottom: 2rem;
 }
 
-/* Upload Compact */
 [data-testid="stFileUploader"] > div {
     padding: 8px !important;
 }
-
 [data-testid="stFileUploader"] section {
     padding: 14px !important;
     border-radius: 12px !important;
 }
-
 [data-testid="stFileUploader"] p {
     font-size: 14px !important;
 }
-
 [data-testid="stFileUploader"] button {
     padding: 6px 12px !important;
     font-size: 13px !important;
 }
-
 [data-testid="stFileUploader"] {
     margin-bottom: 10px !important;
 }
-
 [data-testid="stFileUploader"] section div {
     gap: 6px !important;
 }
 
-/* Summary Card */
 .summary-card {
     background: linear-gradient(135deg, #0f172a, #1e293b);
     padding: 25px;
@@ -88,7 +81,6 @@ def map_sim(sim):
 
 def extract_tail(text):
     response, status, message = "", "", ""
-
     text = text.replace('""', '"')
 
     m_status = re.search(r'"statusCode"\s*:\s*"?(\d+)"?', text)
@@ -110,26 +102,22 @@ def extract_uuid(text):
     return m.group(1) if m else ""
 
 # =========================
-# FILE 1 (เดิม)
+# FILE 1
 # =========================
 def process_file(df):
     rows = []
-
     for col in df.columns:
         for val in df[col]:
-
             if pd.isna(val):
                 continue
 
             text = str(val)
-
             json_str = extract_json(text)
             if not json_str:
                 continue
 
             try:
                 data = json.loads(json_str)
-
                 response, status, msg = extract_tail(text)
                 uuid = extract_uuid(text)
 
@@ -151,11 +139,10 @@ def process_file(df):
                         })
             except:
                 continue
-
     return rows
 
 # =========================
-# FILE 2 (UUID mapping)
+# FILE 2
 # =========================
 def process_file_v2(df):
     rows = []
@@ -181,14 +168,12 @@ def process_file_v2(df):
 
             text = str(val)
             uuid = extract_uuid(text)
-
             json_str = extract_json(text)
             if not json_str:
                 continue
 
             try:
                 data = json.loads(json_str)
-
                 response, status, msg = response_map.get(uuid, ("", "", ""))
 
                 if isinstance(data, list):
@@ -209,22 +194,81 @@ def process_file_v2(df):
                         })
             except:
                 continue
-
     return rows
 
-def summary_card(title, total, error):
-    st.markdown(f"""
-    <div class="summary-card">
-        <div class="summary-title">{title}</div>
-        <div class="summary-number">{total}</div>
-        <div class="summary-error">Error: {error}</div>
-    </div>
-    """, unsafe_allow_html=True)
+# =========================
+# FILE 3 (🔥 เพิ่มใหม่)
+# =========================
+def extract_body_data(text):
+    if "body={" not in text:
+        return {}
+    try:
+        part = text.split("body={", 1)[1].split("}", 1)[0]
+        data = {}
+        for item in part.split(","):
+            if "=" in item:
+                k, v = item.split("=", 1)
+                data[k.strip()] = v.strip()
+        return data
+    except:
+        return {}
+
+def extract_response_data(text):
+    if "Response:" not in text:
+        return {}
+    try:
+        part = text.split("Response:", 1)[1]
+        start = part.find("{")
+        end = part.rfind("}") + 1
+        clean = part[start:end].replace('""', '"')
+        data = json.loads(clean)
+        return {
+            "StatusCode": data.get("statusCode"),
+            "ResponseMessage": data.get("message")
+        }
+    except:
+        return {}
+
+def parse_vehicle_setting(df):
+    logs = []
+    for col in df.columns:
+        logs.extend(df[col].dropna().astype(str).tolist())
+
+    uuid_map = {}
+
+    for text in logs:
+        uuid = extract_uuid(text)
+        if not uuid:
+            continue
+
+        uuid_map.setdefault(uuid, {})
+
+        if "Request:" in text:
+            uuid_map[uuid].update(extract_body_data(text))
+
+        if "Response:" in text:
+            uuid_map[uuid].update(extract_response_data(text))
+
+    rows = []
+    for i, (uuid, data) in enumerate(uuid_map.items(), start=1):
+        rows.append({
+            "No.": i,
+            "UUID": uuid,
+            "VIN": data.get("vin"),
+            "DeviceID": data.get("deviceId"),
+            "IMEI": data.get("IMEI"),
+            "SimStatus": data.get("simStatus"),
+            "SimPackage": data.get("simPackage"),
+            "StatusCode": data.get("StatusCode"),
+            "ResponseMessage": data.get("ResponseMessage"),
+        })
+
+    return pd.DataFrame(rows)
 
 # =========================
-# UPLOAD (🔥 แก้ตรงนี้)
+# UPLOAD (🔥 เพิ่ม file3)
 # =========================
-col1, col2 = st.columns([1,1], gap="large")
+col1, col2, col3 = st.columns([1,1,1], gap="large")
 
 with col1:
     st.markdown("TCAPLinkageDatahub")
@@ -233,6 +277,10 @@ with col1:
 with col2:
     st.markdown("TCAPLinkage")
     file2 = st.file_uploader("", type=["xlsx", "csv"], key="file2")
+
+with col3:
+    st.markdown("VehicleSettingRequester")
+    file3 = st.file_uploader("", type=["xlsx", "csv"], key="file3")
 
 # =========================
 # PROCESS
@@ -243,24 +291,25 @@ if file1:
     rows1 = process_file(df1)
 
     df_vin1 = pd.DataFrame(rows1).fillna("")
-    df_vin1 = df_vin1.reset_index(drop=True)
-    df_vin1.insert(0, "No.", df_vin1.index + 1)
+    df_vin1.insert(0, "No.", range(1, len(df_vin1)+1))
 
     df_vin2 = pd.DataFrame()
+    df_vin3 = pd.DataFrame()
 
     if file2:
         df2 = pd.read_csv(file2) if file2.name.endswith(".csv") else pd.read_excel(file2)
         rows2 = process_file_v2(df2)
 
         df_vin2 = pd.DataFrame(rows2).fillna("")
-        df_vin2 = df_vin2.reset_index(drop=True)
-        df_vin2.insert(0, "No.", df_vin2.index + 1)
+        df_vin2.insert(0, "No.", range(1, len(df_vin2)+1))
 
-        df_vin2 = df_vin2[
-            ["No.", "UUID", "VIN", "DeviceID", "Response Message", "StatusCode"]
-        ]
+    if file3:
+        df3 = pd.read_csv(file3) if file3.name.endswith(".csv") else pd.read_excel(file3)
+        df_vin3 = parse_vehicle_setting(df3)
 
+    # =========================
     # SUMMARY
+    # =========================
     st.markdown("## Summary")
 
     cards = []
@@ -269,13 +318,18 @@ if file1:
     if not df_vin2.empty:
         cards.append(("TCAPLinkage", len(df_vin2), 0))
 
+    if not df_vin3.empty:
+        cards.append(("VehicleSettingRequester", len(df_vin3), 0))
+
     cols = st.columns(len(cards))
 
     for i, (title, total, error) in enumerate(cards):
         with cols[i]:
             summary_card(title, total, error)
 
+    # =========================
     # TABLE
+    # =========================
     st.markdown("### TCAPLinkageDatahub")
     st.dataframe(df_vin1, use_container_width=True)
 
@@ -283,15 +337,23 @@ if file1:
         st.markdown("### TCAPLinkage")
         st.dataframe(df_vin2, use_container_width=True)
 
-    # EXPORT (ไม่มี Summary sheet)
+    if not df_vin3.empty:
+        st.markdown("### VehicleSettingRequester")
+        st.dataframe(df_vin3, use_container_width=True)
+
+    # =========================
+    # EXPORT
+    # =========================
     output = BytesIO()
 
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-
         df_vin1.to_excel(writer, index=False, sheet_name='TCAPLinkageDataHub')
 
         if not df_vin2.empty:
             df_vin2.to_excel(writer, index=False, sheet_name='TCAPLinkage')
+
+        if not df_vin3.empty:
+            df_vin3.to_excel(writer, index=False, sheet_name='VehicleSettingRequester')
 
     output.seek(0)
 
