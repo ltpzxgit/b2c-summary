@@ -308,7 +308,7 @@ if file1:
     # =========================
     # SUMMARY (2x2 + spacing)
     # =========================
-    st.markdown("## Summary")
+    st.markdown("## B2C Summary")
 
     r1 = st.columns(2)
 
